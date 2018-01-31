@@ -62,14 +62,6 @@ function lovelyMoon.events.mousereleased(x, y, button)
 	end
 end
 
-function lovelyMoon.events.wheelmoved(x, y)								-- Added by Zacharie Sciamma (to my own copy)
-	for index, state in pairs(_slotState.states) do
-		if state and state._enabled and state.wheelmoved then 
-			state:wheelmoved(x, y)
-		end
-	end
-end
-
 ------------------------------------------------------------------------------------------------------------------------------------------
 function lovelyMoon.new(s)
 	local gs = {}
