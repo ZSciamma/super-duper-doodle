@@ -1,32 +1,13 @@
-lovelyMoon = require("lib.lovelyMoon")
-Object = require "lib.classic"
+-- Not mine (sources given in report):
+Object = require 'lib.classic'
+require 'lib.tableSer'
 
-require 'items.stateButton'
-require 'items.ansButton'
-require 'items.slider'
-require 'items.textInput'
-require 'items.scrollBar'
-
-require 'comm'
-
+-- Mine:
+require 'database.graph'
 require 'database.tables'
+require 'comm'
+require 'algorithms'
 
-
-	--************ SAVE IN FILE: *************--
-	-- Make student input this upon opening the app:
-	new = true						-- True if the user has never opened the app (and so not set the profile and class information)
-	myForename = "Mr"
-	mySurname = "Bob"
-	myEmail = "yo.yoyo@gmail.com"	
-	profileComplete = true 			-- Default to true
-	ClassName = ""
-	serverLoc = "localhost:6789"	-- Will change when server is fixed
-	TeacherID = ""
-	myPassword = "Borgalorg"			-- Teacher's password, set upon starting the app for the first time
-	classes = {}
-	--*************** DEBUGGING *************************--
-
--- Some useful extension functions for strings:
 
 local metaT = getmetatable("")
 
@@ -44,87 +25,48 @@ metaT.__div = function(string1, i)			-- / Removes the ith letter
 	return string.sub(string1, 1, i - 1)..string.sub(string1, i + 1)
 end
 
-
---********************* DEBUGGING *********************--
-
-loc = "localhost:6789"				-- Where I'm coding right now
-
-function isSub(table, subTable)				-- Check if every item in subTable is in table (recursive)
-	if subTable == {} then return true end
-	for i, j in ipairs(table) do 
-		if j == subTable[1] then
-			table.remove(subTable, 1)
-			return isSub(table, subTable)
-		end
-	end
-end
-
-function itemIn(table, item)		-- Is the item in the table?
-	for i,j in ipairs(table) do
-		if j == item then return true end
-	end
-	return false
-end
-
-states = {}
-
-serverTime = 1
+serverTime = 0.1
 serverTimer = serverTime
-
+serverLoc = "Localhost:6789"
 
 function love.load()
 	love.window.setMode(1100, 600)
 	love.graphics.setBackgroundColor(66, 167, 244)
 
-	love.window.setTitle("Interval Teaching")
+	love.window.setTitle("Interval Server")
 
-	states.menu = lovelyMoon.addState("states.menu", "menu")
-	states.classes = lovelyMoon.addState("states.classesList", "classesList")
-	states.options = lovelyMoon.addState("states.options", "options")
-	states.stats = lovelyMoon.addState("states.stats", "stats")
-	states.newClass = lovelyMoon.addState("states.newClass", "newClass")
-
-	lovelyMoon.enableState("menu")
+	-- Load saved tables for database:
 
 	serv = Server()
-
-	serv.on = true							-- Comment to speed up the app and smooth the scrollbar
-end
-
-
-function love.update(dt)
-	lovelyMoon.events.update(dt)
-	if serverTimer <= 0 then
-		serverTimer = serverTime
-		if serv.on then serv:update(dt) end
-	else 
-		serverTimer = serverTimer - dt
-	end
 end
 
 
 function love.draw()
-	lovelyMoon.events.draw()
-	if serv.on then serv:draw() end
+	for i, Student in ipairs(StudentAccount) do
+		love.graphics.print(Student.Forename, 500, 500)
+	end
+
+	for i, Teacher in ipairs(TeacherAccount) do
+		love.graphics.print(Teacher.Forename, 550, 500)
+	end
+	serv:draw()
 end
 
-function love.keyreleased(key)
-	lovelyMoon.events.keyreleased(key)
+
+function love.update(dt)
+	if serverTimer <= 0 then
+		serv:update(dt)
+		serverTimer = serverTime
+	else
+		serverTimer = serverTimer - dt
+	end
 end
 
-
-function love.keypressed(key)
-	lovelyMoon.events.keypressed(key)
-end
-
-function love.mousepressed(x, y, button)
-	lovelyMoon.events.mousepressed(x, y, button)
-end
-
-function love.mousereleased(x, y, button)
-	lovelyMoon.events.mousereleased(x, y, button)
-end 
-
-function love.wheelmoved(x, y)
-	lovelyMoon.events.wheelmoved(x, y, button)
+function love.quit()					-- Save the tables upon quitting
+	love.filesystem.write("StudentAccountSave", table.serialize(StudentAccount))
+	love.filesystem.write("TeacherAccountSave", table.serialize(TeacherAccount))
+	love.filesystem.write("ClassSave", table.serialize(Class))
+	love.filesystem.write("TournamentSave", table.serialize(Tournament))
+	love.filesystem.write("TournamentMatchSave", table.serialize(TournamentMatch))
+	love.filesystem.write("StudentMatchSave", table.serialize(StudentMatch))
 end
