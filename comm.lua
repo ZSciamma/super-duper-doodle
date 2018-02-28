@@ -25,8 +25,14 @@ function Server:draw()
     for i,client in ipairs(clients) do
         love.graphics.print("ClientNo: "..client.peer:index()..", Is Student: "..tostring(client.isStudent)..", ID: "..client.ID, love.graphics.getWidth() - 300, 200 + 15 * i)
     end
-end
 
+    if #StudentAccount == 1 then
+        local messages = SendStudentEvents(1)
+        for i,p in ipairs(messages) do
+            love.graphics.draw(p, 100, 100)
+        end
+    end
+end
 
 function Server:update(dt)
     event = host:service(100)
@@ -51,11 +57,19 @@ function respondToMessage(event)
     local first = messageTable[1]                   -- Find the description attached to the message
     table.remove(messageTable, 1)                   -- Remove the description, leaving only the rest of the data
     local messageResponses = {                      -- Table specfifying the appropriate response to each message description
-        ["NewStudent"] = function(peer, forename, surname, email, password, classCode) AddNewStudent(peer, forename, surname, email, password, classCode) end,
-        ["NewTeacher"] = function(peer, forename, surname, email, password) AddNewTeacher(peer, forename, surname, email, password) end,
+        ["NewStudentAccount"] = function(peer, forename, surname, email, password) CreateNewStudent(peer, forename, surname, email, password) end,
+        ["NewTeacherAccount"] = function(peer, forename, surname, email, password) CreateNewTeacher(peer, forename, surname, email, password) end,
+        ["StudentLogin"] = function(peer, email, password) LoginStudent(peer, email, password) end,
+        ["TeacherLogin"] = function(peer, email, password) LoginTeacher(peer, email, password) end,
         ["NewClass"] = function(peer, classname) MakeNewClass(peer, classname) end,
+        ["StudentClassJoin"] = function(peer, classJoinCode) AddStudentToClass(peer, classJoinCode) end,
+
+        -- Potentiall need fixing:
+
+        ["NewTeacher"] = function(peer, forename, surname, email, password) AddNewTeacher(peer, forename, surname, email, password) end,
+
         ["NewTournament"] = function(peer, classname, maxduration, matches) MakeNewTournament(peer, classname, maxduration, matches) end,
-        ["NextMatch"] = function(peer) SendNextMatch(peer) end,
+        ["NextGame"] = function(peer) SendNextGame(peer) end,
         ["RequestReport"] = function(peer, studentID) end,                           -- Request a student's report
         ["SendReport"] = function(peer, teacherID, report) end,                      -- Send student report to teacher
         ["OfferStudentID"] = function(peer, studentID, password) ReceiveStudentID(peer, tonumber(studentID), password) end,           -- Non-new student attempting to connect
@@ -66,9 +80,28 @@ end
 
 function split(peerMessage)
     local messageTable = {}
-    for word in peerMessage:gmatch("[^%s,]+") do         -- Possibly write a better expression - try some basic email regex?
+    peerMessage = peerMessage.."....."
+    local length = #peerMessage
+    local dots = 0
+    local last = 1
+    for i = 1,length do
+        local c = string.sub(peerMessage, i, i)
+        if c == '.' then
+            dots = dots + 1
+        end
+        if dots == 5 then
+            local word = string.sub(peerMessage, last, i-5)
+            last = i + 1
+            table.insert(messageTable, word)
+            dots = 0
+        end
+    end
+
+    --[[
+    for word in peerMessage:gmatch("[^,%s]+") do         -- Possibly write a better expression - try some basic email regex?
         table.insert(messageTable, word)
     end
+    ]]--
     return messageTable
 end
 
@@ -95,7 +128,7 @@ end
 
 function MakeNewClass(peer, classname)
     local peerInfo = IdentifyPeer(peer)
-    local teacherID = peerInfo.ID                       -- Only valid if the peer is a teacher
+    local teacherID = peerInfo.ID                       -- Only valid if the peer is a teacher (must be a teacher to reach this subroutine)
     if TeacherClassExists(classname, teacherID) then 
         SendInfo(peer, "NewClassReject" + classname + "This class already exists. Please choose a different name.", false, peerInfo.ID)                     
     else
@@ -105,59 +138,96 @@ function MakeNewClass(peer, classname)
     end
 end
 
+function AddStudentToClass(peer, classJoinCode)
+    local peerInfo = IdentifyPeer(peer)
+    local studentID = peerInfo.ID
+    local class = ConfirmClassCode(classJoinCode)
+    if class then
+        local classAddSuccess = AddStudentClass(studentID, class.classID) 
+        if classAddSuccess then
+            SendInfo(peer, "JoinClassSuccess" + class.className, true, studentID)
+        else
+            SendInfo(peer, "JoinClassFail" + "You are already in a class!", true, studentID)
+            return
+        end
+    else
+        SendInfo(peer, "JoinClassFail" + "Invalid Class Code", true, studentID)
+        return
+    end
+    local teacherID = class.teacherID
+    local teacherPeer = FindTeacher(teacherID)
+    SendInfo(teacherPeer, "StudentJoinedClass" + class.className + studentID, false, teacherID)
+end
+
 function MakeNewTournament(peer, classname, maxduration, matches)
     local peerInfo = IdentifyPeer(peer)
     local teacherID = peerInfo.ID
-    if TeacherTournamentExists(classname, teacherID) then
+    local classID = FindClassID(teacherID, classname)
+    if ClassTournamentExists(classID) then
         SendInfo(peer, "NewTournamentReject" + classname + "This class is already in a tournament. Please wait for it to finish.", false, peerInfo.ID)
     else
-        addTournament(classname, maxduration, matches)
+        addTournament(classID, maxduration, matches)
         SendInfo(peer, "NewTournamentAccept" + classname, false, peerInfo.ID)
     end
 end
 
-function SendNextMatch(peer)
+function SendNextGame(peer)
     local peerInfo = IdentifyPeer(peer)
     local studentID = peerInfo.ID
-    local classname = FindStudentClass(studentID)
-    if not TeacherTournamentExists(classname) then          -- Conditions to check for next match
-        SendInfo(peer, "NoCurrentTournament", true, studentID)
+    local classID = FindStudentClass(studentID)
+    if not ClassTournamentExists(classID) then          -- Conditions to check for next match
+        SendInfo(peer, "NoCurrentTournament" + classID, true, studentID)
         return
     end
-    local studentsInfo = FindTournamentMatch(studentID)     -- Send student the info for both players. The student program calculates the questions, easing the central server's workload.
-    if studentsInfo then 
-        SendInfo(peer, "NextMatch" + table.serialize(studentsInfo), true, studentID)
+    local gameID = FindTournamentGame(studentID)     -- Send student the info for both players. The student program calculates the questions, easing the central server's workload.
+    if gameID then 
+        local levels = FindGameLevels(gameID)
+        SendInfo(peer, "NextGame" + levels[1] + levels[2], true, studentID)
     else
-        SendInfo(peer, "NoNewMatches", true, studentID)
+        SendInfo(peer, "NoNewGames", true, studentID)
     end
-
 
 end
 
-function AddNewStudent(peer, forename, surname, email, password, classCode)
-    local classInfo = ConfirmClassCode(classCode)
-    local className = classInfo.className
-    local teacherID = classInfo.TeacherID
+function CreateNewStudent(peer, forename, surname, email, password)
     if EmailTaken(email) then
-        peer:send("NewStudentReject" + "This email address is already in use. Please use a different email.")
-    elseif className == "" or className == nil then                 -- If the class code given wasn't valid
-        peer:send("NewStudentReject" + "This class code is invalid. Please ask your teacher for help.")
+        peer:send("NewAccountReject" + "This email address is already in use. Please use a different email.")
     else
-        local newStudentID = addStudentAccount(forename, surname, email, password, className)
-        local teacherPeer = FindTeacher(teacherID)          -- Will be false if teacher is not online
-        peer:send("NewStudentAccept" + newStudentID + className)
-        SendInfo(teacherPeer, "NewStudentAccept" + forename + surname + email + className, false, teacherID)
-        addClient(peer, true, newStudentID)
+        local newStudentID = addStudentAccount(forename, surname, email, password)
+        peer:send("NewAccountAccept")
     end
 end
 
-function AddNewTeacher(peer, forename, surname, email, password)
+function CreateNewTeacher(peer, forename, surname, email, password)
     if EmailTaken(email) then
-        peer:send("NewTeacherReject" + "This email address is already in use. Please use a different email.")
+        peer:send("NewAccountReject" + "This email address is already in use. Please use a different email.")
     else
         local newTeacherID = addTeacherAccount(forename, surname, email, password)
-        peer:send("NewTeacherAccept" + newTeacherID)
-        addClient(peer, false, newTeacherID)
+        peer:send("NewAccountAccept" + TeacherAccount[newTeacherID].Forename + TeacherAccount[newTeacherID].Surname + TeacherAccount[newTeacherID].EmailAddress + TeacherAccount[newTeacherID].Password)
+    end
+end
+
+function LoginStudent(peer, email, password)
+    local StudentID = ValidateStudentLogin(email, password)
+    if StudentID then
+        local className = FindStudentClassName(StudentID)
+        peer:send("LoginSuccess" + (className or ""))               -- Send all info needed by the student: classname, level
+        SendStudentMissedEvents(peer, StudentID)
+        addClient(peer, true, StudentID)
+    else 
+        peer:send("LoginFail" + "Please verify all fields are correct.")
+    end
+end
+
+function LoginTeacher(peer, email, password)
+    local TeacherID = ValidateTeacherLogin(email, password)
+    if TeacherID then
+        local teacherInfo = FetchTeacherInfo(TeacherID)
+        peer:send("LoginSuccess" + teacherInfo.students + teacherInfo.classes + teacherInfo.tournaments)    -- Send all info needed by the teacher: classes
+        SendTeacherMissedEvents(peer, teacherID)
+        addClient(peer, false, TeacherID)
+    else 
+        peer:send("LoginFail" + "Please verify all fields are correct.")
     end
 end
 
@@ -179,31 +249,15 @@ function FindTeacher(teacherID)
     return false
 end
 
-function ReceiveStudentID(peer, studentID, password)
-    if ValidateStudentID(studentID, password) then
-        peer:send("WelcomeBackStudent")
-        addClient(peer, true, studentID)
-        sendStudentMissedEvents(peer, studentID)
-    end
-end
-
-function ReceiveTeacherID(peer, teacherID, password)
-    if ValidateTeacherID(teacherID, password) then
-        peer:send("WelcomeBackTeacher")
-        addClient(peer, false, teacherID)
-        sendTeacherMissedEvents(peer, teacherID)
-    end
-end
-
 function listEvent(message, isStudent, ID)
     if isStudent then 
-        AddStudentEvent(ID, message)
+        addStudentMissedEvent(ID, message)
     elseif not isStudent then
-        AddTeacherEvent(ID, message)
+        addTeacherMissedEvent(ID, message)
     end
 end
 
-function sendStudentMissedEvents(peer, ID)
+function SendStudentMissedEvents(peer, ID)
     local missedEvents = {}
     missedEvents = SendStudentEvents(ID)
     for i,message in ipairs(missedEvents) do
@@ -212,14 +266,15 @@ function sendStudentMissedEvents(peer, ID)
     ClearStudentEvents(ID)
 end
 
-function sendTeacherMissedEvents(peer, ID)
+function SendTeacherMissedEvents(peer, ID)
     local missedEvents = {}
-    if ID ~= 1 then return end
     missedEvents = SendTeacherEvents(ID)
     for i,message in ipairs(missedEvents) do
         SendInfo(peer, message, false, ID)
     end
     ClearTeacherEvents(ID)
 end
+
+
 
 
