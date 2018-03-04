@@ -30,7 +30,7 @@ function addStudentAccount(Forename, Surname, EmailAddress, Password, ClassID)
 		EmailAddress = EmailAddress,
 		Password = Password,
 		ClassID = ClassID,
-		Level = "01234456", 					-- How advanced the student is at the game. Atomic in this case since it is serialized, so as far as the database knows, it is undivisible.
+		Level = "0.0.0.0.0.0.0.0.1.1.0.0.1.1.0.0.0.0.0.0.0.0.1.1", 			-- How advanced the student is at the game. Atomic in this case since it is serialized, so as far as the database knows, it is undivisible.
 	}
 	table.insert(StudentAccount, newStudent)
 	return newStudent.StudentID
@@ -256,7 +256,7 @@ function FetchTeacherInfo(TeacherID)				-- Returns serialized Class, StudentAcco
 	for i,student in ipairs(StudentAccount) do
 		if classIDs[student.classID] then
 			studentNum = studentNum + 1
-			table.insert(students, { StudentID = studentNum, Forename = student.Forename, Surname = student.Surname, EmailAddress = student.EmailAddress, ClassID = classIDs[student.ClassID] })
+			table.insert(students, { StudentID = studentNum, Forename = student.Forename, Surname = student.Surname, Level = student.Level, ClassID = classIDs[student.ClassID] })
 		end
 	end
 
@@ -281,6 +281,18 @@ function FindStudentClassName(StudentID)
 	return false
 end
 
+function FindStudentLevel(StudentID)
+	return StudentAccount[StudentID].Level
+end
+
+function StudentInfo(StudentID)
+	for i,student in ipairs(StudentAccount) do
+		if student.StudentID == StudentID then
+			return student
+		end
+	end
+	return false
+end
 
 
 
