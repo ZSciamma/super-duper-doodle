@@ -67,6 +67,8 @@ function respondToMessage(event)
         ["TeacherLogin"] = function(peer, email, password) LoginTeacher(peer, email, password) end,
         ["NewClass"] = function(peer, classname) MakeNewClass(peer, classname) end,
         ["StudentClassJoin"] = function(peer, classJoinCode) AddStudentToClass(peer, classJoinCode) end,
+        ["StudentLogout"] = function(peer, rating) LogoutStudent(peer, rating) end,
+        ["TeacherLogout"] = function(peer) LogoutTeacher(peer) end,
 
         -- Potentially need fixing:
 
@@ -162,7 +164,7 @@ function AddStudentToClass(peer, classJoinCode)
     end
     local teacherID = class.teacherID
     local teacherPeer = FindTeacher(teacherID)
-    SendInfo(teacherPeer, "StudentJoinedClass" + studentID + student.Forename + student.Surname + class.className + student.Level, false, teacherID)
+    SendInfo(teacherPeer, "StudentJoinedClass" + studentID + student.Forename + student.Surname + class.className + student.Ratings, false, teacherID)
 end
 
 function MakeNewTournament(peer, classname, maxduration, matches)
@@ -187,8 +189,8 @@ function SendNextGame(peer)
     end
     local gameID = FindTournamentGame(studentID)     -- Send student the info for both players. The student program calculates the questions, easing the central server's workload.
     if gameID then 
-        local levels = FindGameLevels(gameID)
-        SendInfo(peer, "NextGame" + levels[1] + levels[2], true, studentID)
+        local ratings = FindGameRatings(gameID)
+        SendInfo(peer, "NextGame" + ratings[1] + ratings[2], true, studentID)
     else
         SendInfo(peer, "NoNewGames", true, studentID)
     end
@@ -217,8 +219,8 @@ function LoginStudent(peer, email, password)
     local StudentID = ValidateStudentLogin(email, password)
     if StudentID then
         local className = FindStudentClassName(StudentID)
-        local level = FindStudentLevel(StudentID)
-        peer:send("LoginSuccess" + (className or "") + level)               -- Send all info needed by the student: classname, level
+        local ratings = FindStudentRatings(StudentID)
+        peer:send("LoginSuccess" + (className or "") + ratings)               -- Send all info needed by the student: classname, ratings
         addClient(peer, true, StudentID)
         SendStudentMissedEvents(peer, StudentID)
     else 
@@ -280,6 +282,22 @@ function SendTeacherMissedEvents(peer, ID)
         SendInfo(peer, event, false, ID)
     end
     ClearTeacherEvents(ID)
+end
+
+function LogoutStudent(peer, newRating)
+    local student = IdentifyPeer(peer)
+    if student then 
+        peer:send("LogoutSuccess")
+        UpdateStudentRatings(student.ID, newRating)
+        removeClient(peer)                      -- Remove the student from the list of users logged in
+    end
+end
+
+function LogoutTeacher(peer)
+    if peer then 
+        peer:send("LogoutSuccess")
+        removeClient(peer)
+    end
 end
 
 

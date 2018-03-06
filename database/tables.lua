@@ -30,7 +30,7 @@ function addStudentAccount(Forename, Surname, EmailAddress, Password, ClassID)
 		EmailAddress = EmailAddress,
 		Password = Password,
 		ClassID = ClassID,
-		Level = "0.0.0.0.0.0.0.0.1.1.0.0.1.1.0.0.0.0.0.0.0.0.1.1", 			-- How advanced the student is at the game. Atomic in this case since it is serialized, so as far as the database knows, it is undivisible.
+		Ratings = "0.0.0.0.0.0.0.0.1.1.0.0.1.1.0.0.0.0.0.0.0.0.1.1", 			-- How advanced the student is at the game. Atomic in this case since it is serialized, so as far as the database knows, it is undivisible.
 	}
 	table.insert(StudentAccount, newStudent)
 	return newStudent.StudentID
@@ -256,7 +256,7 @@ function FetchTeacherInfo(TeacherID)				-- Returns serialized Class, StudentAcco
 	for i,student in ipairs(StudentAccount) do
 		if classIDs[student.classID] then
 			studentNum = studentNum + 1
-			table.insert(students, { StudentID = studentNum, Forename = student.Forename, Surname = student.Surname, Level = student.Level, ClassID = classIDs[student.ClassID] })
+			table.insert(students, { StudentID = studentNum, Forename = student.Forename, Surname = student.Surname, Ratings = student.Ratings, ClassID = classIDs[student.ClassID] })
 		end
 	end
 
@@ -281,8 +281,8 @@ function FindStudentClassName(StudentID)
 	return false
 end
 
-function FindStudentLevel(StudentID)
-	return StudentAccount[StudentID].Level
+function FindStudentRatings(StudentID)
+	return StudentAccount[StudentID].Ratings
 end
 
 function StudentInfo(StudentID)
@@ -328,19 +328,19 @@ function FindTournamentGame(StudentID)
 	return false
 end
 
-function FindGameLevels(GameID)
-	local levels = {}
+function FindGameRatings(GameID)
+	local ratings = {}
 	for i,game in ipairs(StudentTournamentGame) do
 		if game.GameID == GameID then 
 			local studentID = game.studentID
-			table.insert(levels, StudentAccount[StudentID].Level)
+			table.insert(ratings, StudentAccount[StudentID].Ratings)
 		end
 	end
-	return levels
+	return ratings
 end
 
-function UpdateStudentLevel(StudentID, NewStudentLevel) 
-	StudentAccount[StudentID].Level = NewStudentLevel
+function UpdateStudentRatings(StudentID, NewStudentRatings) 
+	StudentAccount[StudentID].Ratings = NewStudentRatings
 end
 
 
