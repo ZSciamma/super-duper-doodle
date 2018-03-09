@@ -6,6 +6,7 @@
 Server = Object:extend()
 
 require "enet"
+require "tournaments"
 
 local clients = {}                      -- Keep track of connected apps in the format: { peer, isStudent, ID } ID IS A STRING IN THIS CASE
 local events = {}

@@ -9,7 +9,7 @@ if love.filesystem.exists("StudentAccountSave") then
 	Tournament = loadstring(love.filesystem.read("TournamentSave"))() 
 	StudentTournamentGame = loadstring(love.filesystem.read("StudentTournamentGameSave"))()
 	TournamentMatch = loadstring(love.filesystem.read("TournamentMatchSave"))() 
-
+	Scoreboard = loadstring(love.filesystem.read("ScoreboardSave"))()
 else
 	StudentAccount = {}
 	StudentMissedEvent = {}
@@ -19,6 +19,7 @@ else
 	Tournament = {}
 	StudentTournamentGame = {}
 	TournamentMatch = {}
+	Scoreboard = {}
 end
 
 function addStudentAccount(Forename, Surname, EmailAddress, Password, ClassID)
@@ -97,29 +98,55 @@ function addTournament(ClassID, MaxDuration, MatchesPerPerson)
 	return newTournament.TournamentID
 end
 
-function addStudentTournamentGame(StudentID, MatchID, Score)
-	local GameNo = FindAvailableID(StudentTournamentGame)
+function addStudentTournamentGame(StudentID, TournamentID, Score)
 	local newGame = {
-		GameID = GameNo + 1,
 		StudentID = StudentID,
-		MatchID = MatchID,
-		Score = nil 					
+		TournamentID = TournamentID
 	}
 	table.insert(StudentTournamentGame, newGame)
 	return newGame.GameID
 end
 
 function addTournamentMatch(StudentMatch1, StudentMatch2, TournamentID)
-	local MatchNo = FindAvailableID(TournamentMatch)
+	local MatchNo = FindAvailableTournamentMatchID(TournamentMatch)
 	local newMatch = {
 		MatchID = MatchNo + 1,
 		TournamentID = TournamentID,
-		WinnerID = nil
+		WinnerID = nil,
 	}
 	table.insert(TournamentMatch, newMatch)
 	return newMatch.MatchID
 end
 
+function addScoreboard(TournamentID, StudentID, Score, Matches, Bye)
+	local newScoreboard = {
+		TournamentID = TournamentID,
+		StudentID = StudentID,
+		Score = 0,
+		Matches = 0,
+		Bye = false
+	}
+	table.insert(Scoreboard, newScoreboard)
+}
+end
+
+function FindAvailableTournamentGameID()
+	local nextID = 1
+	for i,event in ipairs(TournamentMatch) do
+		if event.MatchID > nextID then nextID = event.MatchID end
+	end
+	return nextID
+end
+
+function FindAvailableTournamentGameID()
+	local nextID = 1
+	for i,event in ipairs(StudentTournamentGame) do
+		if event.GameID > nextID then nextID = event.GameID end
+	end
+	return nextID
+end
+
+--[[
 function FindAvailableID(eventTable)
 	local nextID = 1
 	for i,event in ipairs(eventTable) do
@@ -127,6 +154,7 @@ function FindAvailableID(eventTable)
 	end
 	return nextID
 end
+--]]
 
 function TournamentWinner(TournamentID, WinnerID)
 	for i,T in ipairs(Tournament) do
@@ -310,6 +338,9 @@ function ClassCodeTaken(JoinCode)			-- Check if a specific joinCode has already 
 	end
 	return false
 end
+
+
+
 
 
 

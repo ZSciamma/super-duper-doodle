@@ -3,10 +3,14 @@ Object = require 'lib.classic'
 require 'lib.tableSer'
 
 -- Mine:
+require 'datastructure.linkedList'
+require 'datastructure.graph'
+
 require 'database.graph'
 require 'database.tables'
 require 'comm'
 require 'algorithms'
+
 
 
 local metaT = getmetatable("")
@@ -71,4 +75,5 @@ function love.quit()					-- Save the tables upon quitting
 	love.filesystem.write("TournamentSave", table.serialize(Tournament))
 	love.filesystem.write("TournamentMatchSave", table.serialize(TournamentMatch))
 	love.filesystem.write("StudentTournamentGameSave", table.serialize(StudentTournamentGame))
+	love.filesystem.write("ScoreboardSave"), table.serialize(Scoreboard)
 end
