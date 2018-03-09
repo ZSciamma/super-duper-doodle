@@ -69,6 +69,7 @@ function respondToMessage(event)
         ["StudentClassJoin"] = function(peer, classJoinCode) AddStudentToClass(peer, classJoinCode) end,
         ["StudentLogout"] = function(peer, rating) LogoutStudent(peer, rating) end,
         ["TeacherLogout"] = function(peer) LogoutTeacher(peer) end,
+        ["NewTournament"] = function(peer, classname, maxDuration, matches) MakeNewTournament(peer, classname, maxDuration, matches) end,
 
         -- Potentially need fixing:
 
@@ -83,9 +84,10 @@ function respondToMessage(event)
     if messageResponses[first] then messageResponses[first](event.peer, unpack(messageTable))end
 end
 
+
 function split(peerMessage)
     local messageTable = {}
-    peerMessage = peerMessage.."....."
+    peerMessage = peerMessage..".....9"
     local length = #peerMessage
     local dots = 0
     local last = 1
@@ -94,23 +96,18 @@ function split(peerMessage)
         if c == '.' then
             dots = dots + 1
         else
-            dots = 0
-        end
-        if dots == 5 then
-            local word = string.sub(peerMessage, last, i-5)
-            last = i + 1
-            table.insert(messageTable, word)
+            if dots >= 5 then
+                local word = string.sub(peerMessage, last, i - 6)
+                if word == "0" then word = "" end                     -- Account for the server sending blank info
+                last = i 
+                table.insert(messageTable, word)
+            end
             dots = 0
         end
     end
-
-    --[[
-    for word in peerMessage:gmatch("[^,%s]+") do         -- Possibly write a better expression - try some basic email regex?
-        table.insert(messageTable, word)
-    end
-    ]]--
     return messageTable
 end
+
 
 function addClient(peer, isStudent, ID)
     table.insert(clients, { peer = peer, isStudent = isStudent, ID = ID })
@@ -167,15 +164,24 @@ function AddStudentToClass(peer, classJoinCode)
     SendInfo(teacherPeer, "StudentJoinedClass" + studentID + student.Forename + student.Surname + class.className + student.Ratings, false, teacherID)
 end
 
-function MakeNewTournament(peer, classname, maxduration, matches)
+function MakeNewTournament(peer, classname)
     local peerInfo = IdentifyPeer(peer)
     local teacherID = peerInfo.ID
     local classID = FindClassID(teacherID, classname)
     if ClassTournamentExists(classID) then
-        SendInfo(peer, "NewTournamentReject" + classname + "This class is already in a tournament. Please wait for it to finish.", false, peerInfo.ID)
+        SendInfo(peer, "NewTournamentReject" + classname + "This class is already in a tournament. Please wait for it to finish.", false, teacherID)
     else
-        addTournament(classID, maxduration, matches)
-        SendInfo(peer, "NewTournamentAccept" + classname, false, peerInfo.ID)
+        addTournament(classID, 5, 10)
+        SendInfo(peer, "NewTournamentAccept" + classname + 5 + 10, false, teacherID)
+        NotifyStudentsOfTournament(classID)
+    end
+end
+
+function NotifyStudentsOfTournament(classID)
+    local studentIDs = FindStudentsInClass(classID)
+    for i,studentID in ipairs(studentIDs) do
+        local studentPeer = FindStudent(studentID)
+        SendInfo(studentPeer, "NewTournament", true, studentID)
     end
 end
 
@@ -220,7 +226,7 @@ function LoginStudent(peer, email, password)
     if StudentID then
         local className = FindStudentClassName(StudentID)
         local ratings = FindStudentRatings(StudentID)
-        peer:send("LoginSuccess" + (className or "") + ratings)               -- Send all info needed by the student: classname, ratings
+        peer:send("LoginSuccess" + (className or 0) + ratings)               -- Send all info needed by the student: classname, ratings
         addClient(peer, true, StudentID)
         SendStudentMissedEvents(peer, StudentID)
     else 
@@ -252,6 +258,15 @@ end
 function FindTeacher(teacherID)
     for i, client in ipairs(clients) do
         if not client.isStudent and client.ID == teacherID then
+            return client.peer
+        end
+    end
+    return false
+end
+
+function FindStudent(studentID)
+    for i, client in ipairs(clients) do
+        if client.isStudent and client.ID == studentID then
             return client.peer
         end
     end

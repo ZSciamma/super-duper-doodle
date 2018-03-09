@@ -3,8 +3,10 @@
 
 function generateClassJoinCode()			-- Generates a random code to be associated with a class. Make these unique. 
 	local code = ""
-	for i = 1, 6 do
-		code = code..tostring(love.math.random(0, 9))
+	while ClassCodeTaken(code) do
+		for i = 1, 7 do
+			code = code..tostring(love.math.random(0, 9))
+		end
 	end
 	return code
 end

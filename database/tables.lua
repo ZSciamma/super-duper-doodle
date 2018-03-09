@@ -238,33 +238,30 @@ end
 
 function FetchTeacherInfo(TeacherID)				-- Returns serialized Class, StudentAccount, and Tournament tables, but shortened to include only the classes owned by a specific teacher.
 	local classes = {}								-- Consider using aggregate later
-	local classIDs = {}
+	local classIDs = {}								-- All classes which belong to the teacher
 	local students = {}
 	local tournaments = {}
-	local classNum = 0
 	local studentNum = 0
 	local tournamentNum = 0
 
 	for i,class in ipairs(Class) do 
 		if class.TeacherID == TeacherID then
-			classNum = classNum + 1
-			classIDs[class.ClassID] = classNum
-			table.insert(classes, { ClassID = classNum, ClassName = class.ClassName, JoinCode = class.JoinCode })
+			table.insert(classes, { ClassName = class.ClassName, JoinCode = class.JoinCode })
+			classIDs[class.ClassID] = class.ClassName 		-- Store the class if it belongs to the teacher
 		end
 	end
 
 	for i,student in ipairs(StudentAccount) do
-		if classIDs[student.classID] then
-			studentNum = studentNum + 1
-			table.insert(students, { StudentID = studentNum, Forename = student.Forename, Surname = student.Surname, Ratings = student.Ratings, ClassID = classIDs[student.ClassID] })
+		local className = classIDs[student.ClassID]
+		if className then
+			table.insert(students, { StudentID = student.StudentID, Forename = student.Forename, Surname = student.Surname, Ratings = student.Ratings, ClassName = className })
 		end
 	end
 
 	for i,t in ipairs(Tournament) do
-		local num = classIDs[t.ClassID]
-		if num then
-			tournamentNum = tournamentNum + 1
-			table.insert(tournaments, { TournamentID = tournamentNum, ClassName = classes[num].ClassName, MaxDuration = t.MaxDuration, MatchesPerPerson = t.MatchesPerPerson, StartDate = t.StartDate, WinnerID = t.WinnerID})
+		local className = classIDs[t.ClassID]
+		if className then
+			table.insert(tournaments, { TournamentID = tournamentNum, ClassName = className, MaxDuration = t.MaxDuration, MatchesPerPerson = t.MatchesPerPerson, StartDate = t.StartDate, WinnerID = t.WinnerID})
 		end
 	end
 
@@ -294,7 +291,25 @@ function StudentInfo(StudentID)
 	return false
 end
 
+function FindStudentsInClass(classID)		-- Returns the IDs of every student in a class run by a teacher
+	local studentIDs = {}
+	for i,student in ipairs(StudentAccount) do
+		if student.ClassID == classID then
+			table.insert(studentIDs, student.StudentID)
+		end
+	end
+	return studentIDs
+end
 
+function ClassCodeTaken(JoinCode)			-- Check if a specific joinCode has already been assigned
+	if JoinCode == "" then return true end		-- JoinCode not yet set, so invalid
+	for i,class in ipairs(Class) do
+		if Class.JoinCode == JoinCode then 
+			return true
+		end
+	end
+	return false
+end
 
 
 
