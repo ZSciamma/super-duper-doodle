@@ -7,9 +7,8 @@ if love.filesystem.exists("StudentAccountSave") then
 	TeacherMissedEvent = loadstring(love.filesystem.read("TeacherMissedEventSave"))()
 	Class = loadstring(love.filesystem.read("ClassSave"))() 
 	Tournament = loadstring(love.filesystem.read("TournamentSave"))() 
-	StudentTournamentGame = loadstring(love.filesystem.read("StudentTournamentGameSave"))()
-	TournamentMatch = loadstring(love.filesystem.read("TournamentMatchSave"))() 
 	Scoreboard = loadstring(love.filesystem.read("ScoreboardSave"))()
+	StudentMatch = loadstring(love.filesystem.read("StudentMatchSave"))()
 else
 	StudentAccount = {}
 	StudentMissedEvent = {}
@@ -17,9 +16,8 @@ else
 	TeacherMissedEvent = {}
 	Class = {}
 	Tournament = {}
-	StudentTournamentGame = {}
-	TournamentMatch = {}
 	Scoreboard = {}
+	StudentMatch = {}
 end
 
 function addStudentAccount(Forename, Surname, EmailAddress, Password, ClassID)
@@ -84,13 +82,12 @@ function addClass(ClassName, TeacherID, JoinCode)
 	return newClass.ClassID
 end
 
-function addTournament(ClassID, MaxDuration, MatchesPerPerson)
+function addTournament(ClassID, RoundTime)
 	local TournamentNo = #Tournament
 	local newTournament = {
 		TournamentID = TournamentNo + 1,
 		ClassID = ClassID,
-		MaxDuration = MaxDuration,
-		MatchesPerPerson = MatchesPerPerson,
+		RoundLength = RoundTime,
 		StartDate = nil,
 		WinnerID = nil
 	}
@@ -98,37 +95,29 @@ function addTournament(ClassID, MaxDuration, MatchesPerPerson)
 	return newTournament.TournamentID
 end
 
-function addStudentTournamentGame(StudentID, TournamentID, Score)
-	local newGame = {
-		StudentID = StudentID,
-		TournamentID = TournamentID
-	}
-	table.insert(StudentTournamentGame, newGame)
-	return newGame.GameID
-end
-
-function addTournamentMatch(StudentMatch1, StudentMatch2, TournamentID)
-	local MatchNo = FindAvailableTournamentMatchID(TournamentMatch)
-	local newMatch = {
-		MatchID = MatchNo + 1,
-		TournamentID = TournamentID,
-		WinnerID = nil,
-	}
-	table.insert(TournamentMatch, newMatch)
-	return newMatch.MatchID
-end
-
-function addScoreboard(TournamentID, StudentID, Score, Matches, Bye)
+function addScoreboard(TournamentID, StudentID)
+	local ScoreboardNo = #Scoreboard
 	local newScoreboard = {
-		TournamentID = TournamentID,
+		ScoreboardID = ScoreboardNo + 1,
 		StudentID = StudentID,
-		Score = 0,
-		Matches = 0,
-		Bye = false
+		TournamentID = TournamentID,
 	}
 	table.insert(Scoreboard, newScoreboard)
-}
+	return 
 end
+
+function addStudentMatch(FromScoreboardID, ToScoreboardID)
+	local newStudentMatch = {
+		FromScoreboardID = FromScoreboardID,
+		ToScoreboardID = ToScoreboardID,
+		PointsWon = nil
+	}
+	table.insert(StudentMatch, newStudentMatch)
+end
+
+
+------------------------------
+-- Fix these:
 
 function FindAvailableTournamentGameID()
 	local nextID = 1
@@ -146,7 +135,7 @@ function FindAvailableTournamentGameID()
 	return nextID
 end
 
---[[
+
 function FindAvailableID(eventTable)
 	local nextID = 1
 	for i,event in ipairs(eventTable) do
@@ -154,7 +143,10 @@ function FindAvailableID(eventTable)
 	end
 	return nextID
 end
---]]
+
+------------------------------
+
+
 
 function TournamentWinner(TournamentID, WinnerID)
 	for i,T in ipairs(Tournament) do

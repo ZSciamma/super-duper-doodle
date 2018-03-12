@@ -6,7 +6,6 @@
 Server = Object:extend()
 
 require "enet"
-require "tournaments"
 
 local clients = {}                      -- Keep track of connected apps in the format: { peer, isStudent, ID } ID IS A STRING IN THIS CASE
 local events = {}
@@ -70,7 +69,7 @@ function respondToMessage(event)
         ["StudentClassJoin"] = function(peer, classJoinCode) AddStudentToClass(peer, classJoinCode) end,
         ["StudentLogout"] = function(peer, rating) LogoutStudent(peer, rating) end,
         ["TeacherLogout"] = function(peer) LogoutTeacher(peer) end,
-        ["NewTournament"] = function(peer, classname, maxDuration, matches) MakeNewTournament(peer, classname, maxDuration, matches) end,
+        ["NewTournament"] = function(peer, classname, roundTime) MakeNewTournament(peer, classname, roundTime) end,
 
         -- Potentially need fixing:
 
@@ -165,15 +164,17 @@ function AddStudentToClass(peer, classJoinCode)
     SendInfo(teacherPeer, "StudentJoinedClass" + studentID + student.Forename + student.Surname + class.className + student.Ratings, false, teacherID)
 end
 
-function MakeNewTournament(peer, classname)
+function MakeNewTournament(peer, classname, roundTime)
     local peerInfo = IdentifyPeer(peer)
     local teacherID = peerInfo.ID
     local classID = FindClassID(teacherID, classname)
     if ClassTournamentExists(classID) then
         SendInfo(peer, "NewTournamentReject" + classname + "This class is already in a tournament. Please wait for it to finish.", false, teacherID)
     else
-        addTournament(classID, 5, 10)
-        SendInfo(peer, "NewTournamentAccept" + classname + 5 + 10, false, teacherID)
+        local tournamentID = addTournament(classID, roundTime)
+        EnrollStudents(classID, tournamentID)
+        NextRound(tournamentID)
+        SendInfo(peer, "NewTournamentAccept" + classname + roundTime, false, teacherID)
         NotifyStudentsOfTournament(classID)
     end
 end
