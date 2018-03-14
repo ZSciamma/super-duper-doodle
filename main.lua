@@ -30,11 +30,16 @@ metaT.__div = function(string1, i)			-- / Removes the ith letter
 	return string.sub(string1, 1, i - 1)..string.sub(string1, i + 1)
 end
 
-serverTime = 0.1
-serverTimer = serverTime
-serverLoc = "Localhost:6789"
+local serverTime = 0.1
+local serverTimer = serverTime
+local dateTime = os.date('*t')				-- Stores the current date and time
+local lastYDay = dateTime.yday 					-- The last day (of the year) on which each tournament was checked (to see if every match was finished)
 
-function love.load()
+serverLoc = "Localhost:6789"
+TournamentMatchesChecked = false			-- Checks whether the program has checked every tournament to see if its last round has finished yet today
+
+
+function love.load()						-- Callback function called upon loading the program
 	love.window.setMode(1100, 600)
 	love.graphics.setBackgroundColor(66, 167, 244)
 
@@ -46,7 +51,7 @@ function love.load()
 end
 
 
-function love.draw()
+function love.draw()						-- Callback function called after update(): draws everything onscreen
 	for i,Student in ipairs(StudentAccount) do
 		love.graphics.print(Student.Forename, 500, 500 + 15 * i)
 	end
@@ -58,7 +63,13 @@ function love.draw()
 end
 
 
-function love.update(dt)
+function love.update(dt)					-- Callback function called every dt milliseconds
+	dateTime = os.date('*t')
+	if (dateTime.yday ~= lastYDay) then
+		CheckTournamentRoundsFinished(dateTime)
+		lastYDay = dateTime.yday
+	end
+
 	if serverTimer <= 0 then
 		serv:update(dt)
 		serverTimer = serverTime
@@ -67,7 +78,8 @@ function love.update(dt)
 	end
 end
 
-function love.quit()					-- Save the tables upon quitting
+function love.quit()						-- Callback function called when the user quits (by pressing 'X' or otherwise)				
+	-- Save the tables upon quitting
 	love.filesystem.write("StudentAccountSave", table.serialize(StudentAccount))
 	love.filesystem.write("StudentMissedEventSave", table.serialize(StudentMissedEvent))
 	love.filesystem.write("TeacherAccountSave", table.serialize(TeacherAccount))
@@ -76,4 +88,11 @@ function love.quit()					-- Save the tables upon quitting
 	love.filesystem.write("TournamentSave", table.serialize(Tournament))
 	love.filesystem.write("ScoreboardSave", table.serialize(Scoreboard))
 	love.filesystem.write("StudentMatchSave", table.serialize(StudentMatch))
+	love.filesystem.write("IncompleteMatchSave", table.serialize(IncompleteMatch))
 end
+
+-- Incomplete match: stores results for any match which only one of the two players has finished so far.
+-- Reason for not putting ProvisionalScore in database: the table is updated pretty frequently, so it wouldn't be convenient
+-- to keep in the StudentMatch table. Furthermore, it wouldn't be in 3NF, since the PointsWon would have a transive dependency,
+-- and it's much more useful to keep the points won for ease of access and creation of the tournament graph in the future than
+-- the provisional score.

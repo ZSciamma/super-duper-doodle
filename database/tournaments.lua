@@ -1,3 +1,18 @@
+-- The following functions could be in table.lua. They are a mixture of algorithmic and database functions used in creating tournament pairings,
+-- fetching matches, completing matches, and finding tournament winners (for example). Within this file, in comments, the terms scoreboard
+-- and student will be used interchangeably, since a scoreboard represents a student's registration within a tournament, and this file is not
+-- concerned with the registrations of students in completed tournaments (in the past). 
+
+function CheckTournamentRoundsFinished(dateTime)			-- Checks every running tournament 
+	for i,t in ipairs(Tournament) do
+		if (not t.WinnerID and dateTime.yday >= t.LastRound + t.RoundLength) then		-- Tournament needs updating if it is incomplete but the previous round has timed out
+			NextRound(t.TournamentID)
+			t.LastRound = t.yday
+		end
+	end
+
+end
+
 function EnrollStudents(ClassID, TournamentID)		-- Upon creation of a tournament, creates a scoreboard for every student in the class
 	local studentNo = 0
 	for i,student in ipairs(StudentAccount) do
@@ -6,11 +21,25 @@ function EnrollStudents(ClassID, TournamentID)		-- Upon creation of a tournament
 			studentNo = studentNo + 1
 		end
 	end
-	if studentNo % 2 == 1 then addScoreboard(TournamentID, -1) end 		-- Dummy player if odd number of players
+	if studentNo % 2 == 1 then addScoreboard(TournamentID, -1) end 		-- Dummy player added if odd number of players
 end
 
+function FindCurrentScoreboardID(StudentID) -- Finds the latest scoreboard of a student. This correponds to a student's registration in a tournament; only the scoreboard for the tournament currently running will be returned.
+	local classID = StudentAccount[StudentID].ClassID
+	local tournamentID = 0
+	for i,class in ipairs(Class) do
+		if Class.ClassID == classID then
+			tournamentID = Class.TournamentID
+		end
+	end
+	for i,sc in ipairs(Scoreboard) do
+		if sc.TournamentID == tournamentID then
+			return sc.ScoreboardID
+		end
+	end
+end
 
-function NextRound(TournamentID)
+function NextRound(TournamentID) 							-- Overall, creates the next set of matches in a tournament (every pairing for the next round). Every player in the tournament will play in every round
 	local graph = CreateTournamentGraph(TournamentID)
 	local rounds = graph:EdgesPerNode()
 	local playerCount = graph:NodeNumber()
@@ -19,11 +48,10 @@ function NextRound(TournamentID)
 	local rankedStudents = TournamentRanking(graph)
 	local nextPairing = {}
 
-	debug.debug()
 	if rounds == 0 then
 		nextPairing = FirstRoundMatches(rankedStudents)
 	elseif rounds == finalRound then
-		FinishTournament(rankedStudents, graph)
+		FinishTournament(TournamentID, rankedStudents, graph)
 	else
 		nextPairing = TournamentPairing(rankedStudents, graph)
 	end
@@ -34,16 +62,16 @@ function NextRound(TournamentID)
 end
 
 
-function FirstRoundMatches(rankedStudents)
+function FirstRoundMatches(rankedStudents) 		-- Create a random pairing of students for the first round (before any data is available for pairing students)
 	local nextPairing = {}
 	for i = 1, #rankedStudents do
 		local student1 = rankedStudents[i].ID
-		if not nextPairing[student1] then 
+		if not nextPairing[student1] then  		-- If the student is not already paired, find a random pairing for them.
 			local rand = love.math.random(i + 1, #rankedStudents)
-			while nextPairing[rankedStudents[rand].ID] do
+			while nextPairing[rankedStudents[rand].ID] do 		-- Find a new match if the other student is already paired
 				rand = love.math.random(i + 1, #rankedStudents)
 			end
-			nextPairing[student1] = rankedStudents[rand].ID
+			nextPairing[student1] = rankedStudents[rand].ID 	
 			nextPairing[rankedStudents[rand].ID] = student1
 		end
 	end
@@ -75,7 +103,7 @@ function CreateTournamentGraph(TournamentID)	-- Creates a graph to represent the
 end
 
 
-function GraphToScoreboard(graph) 
+function GraphToScoreboard(graph)  		-- Convert a graph into a table where every index represents a student scoreboard ID, pointing to the student's total score in the tournament thus far.
 	local l = {} 
 	for i,j in pairs(graph.nodes) do 
 		l[i] = graph:TotalWeight(i) 
@@ -84,7 +112,7 @@ function GraphToScoreboard(graph)
 end
 
 
-function GraphToList(graph) 
+function GraphToList(graph) 			-- Convert a graph to a list of tables. Each subtable contains the ID and total score of the student in this tournament. This form allows for easy sorting of the list.
 	local l = {} 
 	for i,j in pairs(graph.nodes) do 
 		table.insert(l, { score = graph:TotalWeight(i), ID = i }) 
@@ -165,9 +193,60 @@ function mergeSort(list, graph)						-- Takes a table in the format { score = _,
 end
 
 
-function AddPairings(nextPairing)
+function AddPairings(nextPairing) 		-- Once every pair for the next round has been chosen, add these to the StudentMatch table with a nil score
 	for i,j in pairs(nextPairing) do
 		addStudentMatch(i, j)
+	end
+end
+
+
+function GetIncompleteMatchAgainst(ScoreboardID)	-- A student has completed the latest match in the current tournament. Return the match against them (their opponent's score on the same match) in order to combine the two scores into complete matches.
+	for i,m in ipairs(IncompleteMatch) do
+		if m.ToScoreboardID == ScoreboardID then
+			return m
+		end
+	end
+	return false
+end
+
+
+function CheckMatchComplete(ScoreboardID)	-- Checks whether a student registered in a tournament has yet to complete the match in the current round
+	for i,j in ipairs(StudentMatch) do
+		if j.FromScoreboardID == ScoreboardID and StudentMatch.PointsWon then
+			return true
+		end
+	end
+	for i,j in ipairs(IncompleteMatch) do
+		if j.FromScoreboardID == ScoreboardID then
+			return true
+		end
+	end
+	return false
+end
+
+
+function CompleteMatch(FromScoreboardID, ToScoreboardID, Score1, Score2) 	-- Once both students have finished their match (against each other), add this as a complete match to the StudentMatch table
+	local player1Points = 0
+	if Score1 > Score2 then
+		player1Points = 3
+	else
+		player1Points = 0
+	end
+	for i,match in ipairs(StudentMatch) do
+		if match.FromScoreboardID == FromScoreboardID and match.ToScoreboardID == ToScoreboardID then
+			match.PointsWon = player1Points
+		elseif match.FromScoreboardID == ToScoreboardID and match.ToScoreboardID == FromScoreboardID then
+			match.PointsWon = 3 - player1Points
+		end
+	end
+end
+
+
+function FindCurrentMatch(ScoreboardID) 	-- Returns a student's next match
+	for i,match in ipairs(StudentMatch) do
+		if match.FromScoreboardID == match.ToScoreboardID then
+			return match
+		end
 	end
 end
 

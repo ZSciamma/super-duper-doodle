@@ -1,4 +1,6 @@
--- This is not made to ever delete accounts. There is no reason to delete students or teachers, and using this fact allows efficiency to be higher.
+-- This is not made to ever delete accounts. There is no reason to delete students or teachers, and using this fact allows for greater efficiency
+-- Very few of the functions here are local as most of them are called from comm.lua
+
 
 if love.filesystem.exists("StudentAccountSave") then
 	StudentAccount = loadstring(love.filesystem.read("StudentAccountSave"))() 
@@ -9,6 +11,7 @@ if love.filesystem.exists("StudentAccountSave") then
 	Tournament = loadstring(love.filesystem.read("TournamentSave"))() 
 	Scoreboard = loadstring(love.filesystem.read("ScoreboardSave"))()
 	StudentMatch = loadstring(love.filesystem.read("StudentMatchSave"))()
+	IncompleteMatch = loadstring(love.filesystem.read("IncompleteMatchSave"))
 else
 	StudentAccount = {}
 	StudentMissedEvent = {}
@@ -18,7 +21,29 @@ else
 	Tournament = {}
 	Scoreboard = {}
 	StudentMatch = {}
+	IncompleteMatch = {}
 end
+
+-- DEBUG:
+
+function printTable(table, NOT) 	-- Useful debugging function for printing a selection of attributes for every record in the table. Kept in because it was useful throughout the development of the program (and would be useful in future additions) and was a key part of the testing
+	NOT = NOT or {} 				-- If provided, not is in the format: { ["Rating"] = 0, ["EmailAddress"] = 0, ... } (this example will print every field except Rating and EmailAddress)
+	local recordNumber = 0
+	print()
+	for i,j in ipairs(table) do 
+		recordNumber = recordNumber + 1
+		print("Record Number "..recordNumber..":")
+		for k,l in pairs(j) do 
+			if not NOT[k] then
+				print("\t"..k..":"..(string.rep(" ", 15 - string.len(k)))..(l or "nil"))
+			end
+		end 
+		print() 
+	end 	
+end
+
+
+-- CREATE: functions for creating new records
 
 function addStudentAccount(Forename, Surname, EmailAddress, Password, ClassID)
 	local StudentNo = #StudentAccount
@@ -88,7 +113,7 @@ function addTournament(ClassID, RoundTime)
 		TournamentID = TournamentNo + 1,
 		ClassID = ClassID,
 		RoundLength = RoundTime,
-		StartDate = nil,
+		LastRound = os.date('*t').yday + 1,				-- The day on which the last round was started. Starts on the day after the tournament is created (the first round is slightly longer to accomodate later creation times (eg. 10pm))
 		WinnerID = nil
 	}
 	table.insert(Tournament, newTournament)
@@ -115,6 +140,15 @@ function addStudentMatch(FromScoreboardID, ToScoreboardID)
 	table.insert(StudentMatch, newStudentMatch)
 end
 
+function addIncompleteMatch(FromScoreboardID, ToScoreboardID, Score)
+	local newIncompleteMatch = {
+		FromScoreboardID = FromScoreboardID,
+		ToScoreboardID = ToScoreboardID,
+		Score = Score
+	}
+	table.insert(IncompleteMatch, newIncompleteMatch)
+end
+
 
 ------------------------------
 -- Fix these:
@@ -126,6 +160,7 @@ function FindAvailableTournamentGameID()
 	end
 	return nextID
 end
+
 
 function FindAvailableTournamentGameID()
 	local nextID = 1
@@ -148,23 +183,15 @@ end
 
 
 
-function TournamentWinner(TournamentID, WinnerID)
-	for i,T in ipairs(Tournament) do
-		if T.TournamentID == TournamentID then
-			T.WinnerID = WinnerID
-		end
-	end
-	return 
-end
 
-function TeacherClassExists(ClassName, TeacherID)
+function TeacherClassExists(ClassName, TeacherID) 	-- Checks whether a teacher already owns a class with this classname. If they do, they can't create another one as every class a teacher has must have a unique classname.
 	for i,j in ipairs(Class) do
 		if j.ClassName == ClassName and (not TeacherID or j.TeacherID == TeacherID) then return true end
 	end
 	return false
 end
 
-function ClassTournamentExists(ClassID)
+function ClassTournamentExists(ClassID) 	-- Check whether a class is currently in a tournament by iterating through the Tournament table and checking the ClassID of every tournament.
 	for i,j in ipairs(Tournament) do
 		if j.ClassID == ClassID then 
 			return true 
@@ -202,7 +229,7 @@ function AddStudentClass(StudentID, ClassID) 		-- Add a student to a class (only
 	return false
 end
 
-function ValidateStudentLogin(EmailAddress, Password)
+function ValidateStudentLogin(EmailAddress, Password) 	-- Checks whether a student's login information is valid, returning their StudentID if so.
 	for i,student in ipairs(StudentAccount) do
 		if EmailAddress == student.EmailAddress and Password == student.Password then
 			return student.StudentID
@@ -221,7 +248,7 @@ function SendStudentEvents(StudentID)				-- Return the events missed by the stud
 	return missedEvents
 end
 
-function ValidateTeacherLogin(EmailAddress, Password)
+function ValidateTeacherLogin(EmailAddress, Password) -- Checks whether a teacher's login information is valid, returning their TeacherID if valid.
 	for i,teacher in ipairs(TeacherAccount) do
 		if EmailAddress == teacher.EmailAddress and Password == teacher.Password then
 			return teacher.TeacherID
@@ -256,7 +283,9 @@ function ClearTeacherEvents(TeacherID)				-- Clear the list of missed events onc
 	end
 end
 
-function FetchTeacherInfo(TeacherID)				-- Returns serialized Class, StudentAccount, and Tournament tables, but shortened to include only the classes owned by a specific teacher.
+function FetchTeacherInfo(TeacherID)				-- Returns serialized Class, StudentAccount, and Tournament tables, but shortened to include only the classes owned by a specific teacher. 
+	-- This is essentially all the information that needs to be stored by the teacher program while they are online (to avoid making constant requests from the server for baskc information)
+	-- The teacher database follows a reduced model of the main database.
 	local classes = {}								-- Consider using aggregate later
 	local classIDs = {}								-- All classes which belong to the teacher
 	local students = {}
@@ -264,7 +293,7 @@ function FetchTeacherInfo(TeacherID)				-- Returns serialized Class, StudentAcco
 	local studentNum = 0
 	local tournamentNum = 0
 
-	for i,class in ipairs(Class) do 
+	for i,class in ipairs(Class) do  				
 		if class.TeacherID == TeacherID then
 			table.insert(classes, { ClassName = class.ClassName, JoinCode = class.JoinCode })
 			classIDs[class.ClassID] = class.ClassName 		-- Store the class if it belongs to the teacher
@@ -288,8 +317,8 @@ function FetchTeacherInfo(TeacherID)				-- Returns serialized Class, StudentAcco
 	return { classes = table.serialize(classes), students = table.serialize(students), tournaments = table.serialize(tournaments) }
 end
 
-function FindStudentClassName(StudentID)
-	local ClassID = StudentAccount[StudentID].ClassID
+function FindStudentClassName(StudentID) 		-- Find a student's ClassName from their StudentID.
+	local ClassID = StudentAccount[StudentID].ClassID 	-- Shortcut for finding a student ClassID. This indexing shortcut is widely used throughout the program, based on the principle that no student account is ever deleted (there is no need)
 	for i,class in ipairs(Class) do
 		if class.ClassID == ClassID then
 			return class.ClassName
@@ -298,11 +327,11 @@ function FindStudentClassName(StudentID)
 	return false
 end
 
-function FindStudentRatings(StudentID)
+function FindStudentRatings(StudentID)			-- Returns a student's ratings (ie. how ell they are doing in interval training). Simply here to create a layer between the server and database (ie. layers of validation ensure the server cannot change data directly without calling an appropriate function)
 	return StudentAccount[StudentID].Ratings
 end
 
-function StudentInfo(StudentID)
+function StudentInfo(StudentID)					-- Returns the entire record for a StudentAccount. Useful for adding a student to a class, for example, when we don't want to have to multiple different records in a row from the same place in the database.
 	for i,student in ipairs(StudentAccount) do
 		if student.StudentID == StudentID then
 			return student
@@ -321,7 +350,7 @@ function FindStudentsInClass(classID)		-- Returns the IDs of every student in a 
 	return studentIDs
 end
 
-function ClassCodeTaken(JoinCode)			-- Check if a specific joinCode has already been assigned
+local function classCodeTaken(JoinCode)			-- Check if a specific joinCode has already been assigned
 	if JoinCode == "" then return true end		-- JoinCode not yet set, so invalid
 	for i,class in ipairs(Class) do
 		if Class.JoinCode == JoinCode then 
@@ -331,14 +360,20 @@ function ClassCodeTaken(JoinCode)			-- Check if a specific joinCode has already 
 	return false
 end
 
-
-
-
-
+function GenerateClassJoinCode()			-- Generates a random code to be associated with a class. It also checks the code is unique, so we don't end up with two classes with the same joinCode (however improbable that may be)
+	local code = ""
+	while classCodeTaken(code) do
+		for i = 1, 7 do
+			code = code..tostring(love.math.random(0, 9))
+		end
+	end
+	return code
+end
 
 function FindStudentClass(StudentID)
 	return StudentAccount[StudentID].ClassID
 end
+
 
 function FindClassID(TeacherID, ClassName)
 	for i,j in ipairs(Class) do
@@ -348,44 +383,7 @@ function FindClassID(TeacherID, ClassName)
 	end
 end
 
-function ValidateTeacherID(TeacherID, Password)		-- Validate teacher details when they come back online
-	local teacher = TeacherAccount[TeacherID]
-	local debug = TeacherAccount[TeacherID].MissedEvents
-	if TeacherID == teacher.TeacherID and Password == teacher.Password then
-		return true
-	end
-	return false
-end
-
-function FindTournamentGame(StudentID)
-	for i,game in ipairs(StudentTournamentGame) do
-		if game.StudentID == StudentID then
-			return game.GameID
-		end
-	end
-	return false
-end
-
-function FindGameRatings(GameID)
-	local ratings = {}
-	for i,game in ipairs(StudentTournamentGame) do
-		if game.GameID == GameID then 
-			local studentID = game.studentID
-			table.insert(ratings, StudentAccount[StudentID].Ratings)
-		end
-	end
-	return ratings
-end
-
 function UpdateStudentRatings(StudentID, NewStudentRatings) 
 	StudentAccount[StudentID].Ratings = NewStudentRatings
 end
 
-
-function ValidateStudentID(StudentID, Password)		-- Validate student details when they come back online
-	local student = StudentAccount[StudentID]
-	if StudentID == student.StudentID and Password == student.Password then
-		return true
-	end
-	return false
-end
