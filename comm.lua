@@ -148,26 +148,26 @@ local function AddStudentToClass(peer, classJoinCode)     -- Respond to student 
     SendInfo(teacherPeer, "StudentJoinedClass" + studentID + student.Forename + student.Surname + class.className + student.Ratings, false, teacherID)
 end
 
-local function NotifyStudentsOfTournament(classID, roundTime)            -- Notifies all students in a class that a tournament has started. Called at very start of tournament.
+local function NotifyStudentsOfTournament(classID, roundTime, qsPerMatch)            -- Notifies all students in a class that a tournament has started. Called at very start of tournament.
     local studentIDs = FindStudentsInClass(classID)
     for i,studentID in ipairs(studentIDs) do
         local studentPeer = findStudentPeer(studentID)
-        SendInfo(studentPeer or 0, "NewTournament" + roundTime, true, studentID)
+        SendInfo(studentPeer or 0, "NewTournament" + roundTime + qsPerMatch, true, studentID)
     end
 end
 
-local function MakeNewTournament(peer, classname, roundTime)  -- Response to a teacher asking to create a new tournament. Checks if this request is valid, creates tournaments and begins setting it up.
+local function MakeNewTournament(peer, classname, roundTime, qsPerMatch)  -- Response to a teacher asking to create a new tournament. Checks if this request is valid, creates tournaments and begins setting it up.
     local peerInfo = identifyPeer(peer)
     local teacherID = peerInfo.ID
     local classID = FindClassID(teacherID, classname)
     if ClassTournamentExists(classID) then
         SendInfo(peer, "NewTournamentReject" + classname + "This class is already in a tournament. Please wait for it to finish.", false, teacherID)
     else
-        local tournamentID = addTournament(classID, roundTime)
+        local tournamentID = addTournament(classID, roundTime, qsPerMatch)
+        SendInfo(peer, "NewTournamentAccept" + classname + roundTime + qsPerMatch, false, teacherID)
+        NotifyStudentsOfTournament(classID, roundTime, qsPerMatch)
         EnrollStudents(classID, tournamentID)
         NextRound(tournamentID)
-        SendInfo(peer, "NewTournamentAccept" + classname + roundTime, false, teacherID)
-        NotifyStudentsOfTournament(classID, roundTime)
     end
 end
 
@@ -211,6 +211,19 @@ local function SendStudentMissedEvents(peer, ID)  -- Called when a student logs 
     ClearStudentEvents(ID)
 end
 
+local function RemindStudentOfMatch(peer, StudentID)        -- When a student logs in, their program is reminded of the current match available for them to participate in.
+    local scoreboardID = FindCurrentScoreboardID(StudentID)
+    if not ScoreboardID then return end                     -- Return if no tournament is available
+    local match = FindCurrentMatch(scoreboardID)
+    if not match then return end                            -- Return if no match is available
+
+    local student1 = ReturnScoreboardStudent(match.FromScoreboardID)
+    local student2 = ReturnScoreboardStudent(match.ToScoreboardID)
+    local tournament = ReturnScoreboardTournament(scoreboardID)
+
+    SendInfo(peer, "CurrentMatch" + tournament.RoundLength + tournament.QsPerMatch + tournament.LastRound + student1.Ratings + student2.Ratings, true, StudentID)
+end
+
 local function LoginStudent(peer, email, password)                            -- Response to a student's request to log in. Validates their information and, if correct, logs them in, adding them to the list of online clients and sending back information the student program may need (eg. classname if any)
     local StudentID = ValidateStudentLogin(email, password)
     if StudentID then
@@ -219,6 +232,7 @@ local function LoginStudent(peer, email, password)                            --
         peer:send("LoginSuccess" + (className or 0) + ratings)          -- Send all info needed by the student: classname, ratings. This does not pass through the SendInfo function since the student is not yet in the list of clients online (they are considered offline).
         addClient(peer, true, StudentID)
         SendStudentMissedEvents(peer, StudentID)
+        if FindStudentClass(StudentID) then RemindStudentOfMatch(peer, StudentID) end
     else 
         peer:send("LoginFail" + "Please verify all fields are correct.")
     end
@@ -275,7 +289,7 @@ local function respondToMessage(event)        -- Defines its own protocol for co
         ["StudentClassJoin"] = function(peer, classJoinCode) AddStudentToClass(peer, classJoinCode) end,
         ["StudentLogout"] = function(peer, rating) LogoutStudent(peer, rating) end,
         ["TeacherLogout"] = function(peer) LogoutTeacher(peer) end,
-        ["NewTournament"] = function(peer, classname, roundTime) MakeNewTournament(peer, classname, roundTime) end,
+        ["NewTournament"] = function(peer, classname, roundTime, qsPerMatch) MakeNewTournament(peer, classname, roundTime, qsPerMatch) end,
         ["StudentMatchFinished"] = function(peer, score) UpdateMatchResult(peer, score) end,
 
         -- Potentially need fixing:
@@ -337,6 +351,21 @@ function Server:update(dt)              -- Called every dt seconds to update the
     if event then 
         table.insert(events, event)
         handleEvent(event) 
+    end
+end
+
+function NotifyStudentsOfNewMatch(TournamentID, nextPairings)
+    local startDay = FindTournamentRoundStart(TournamentID)
+    for scoreboard1,scoreboard2 in pairs(nextPairings) do
+        local student1 = ReturnScoreboardStudent(scoreboard1)
+        local studentPeer1 = findStudentPeer((student1 or { StudentID = -1 }).StudentID)
+        local student2 = ReturnScoreboardStudent(scoreboard2)
+        local studentPeer2 = findStudentPeer((student2 or { StudentID = -1 }).StudentID)
+        if not student1 or not student2 then                -- Check whether one of the students is the dummy (issued when there is an odd number of players)
+            if not student2 then SendInfo(studentPeer1, "ByeReceived", true, student1.StudentID) end
+        else
+            SendInfo(studentPeer1, "NewMatch" + startDay + student1.Ratings + student2.Ratings, true, student1.StudentID)
+        end
     end
 end
 

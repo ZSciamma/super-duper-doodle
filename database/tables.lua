@@ -11,7 +11,7 @@ if love.filesystem.exists("StudentAccountSave") then
 	Tournament = loadstring(love.filesystem.read("TournamentSave"))() 
 	Scoreboard = loadstring(love.filesystem.read("ScoreboardSave"))()
 	StudentMatch = loadstring(love.filesystem.read("StudentMatchSave"))()
-	IncompleteMatch = loadstring(love.filesystem.read("IncompleteMatchSave"))
+	IncompleteMatch = loadstring(love.filesystem.read("IncompleteMatchSave"))()
 else
 	StudentAccount = {}
 	StudentMissedEvent = {}
@@ -43,7 +43,9 @@ function printTable(table, NOT) 	-- Useful debugging function for printing a sel
 end
 
 
--- CREATE: functions for creating new records
+
+--***********************************************************************************-
+-------------------- CREATE: functions for creating new records
 
 function addStudentAccount(Forename, Surname, EmailAddress, Password, ClassID)
 	local StudentNo = #StudentAccount
@@ -107,12 +109,13 @@ function addClass(ClassName, TeacherID, JoinCode)
 	return newClass.ClassID
 end
 
-function addTournament(ClassID, RoundTime)
+function addTournament(ClassID, RoundTime, QsPerMatch)
 	local TournamentNo = #Tournament
 	local newTournament = {
 		TournamentID = TournamentNo + 1,
 		ClassID = ClassID,
 		RoundLength = RoundTime,
+		QsPerMatch = QsPerMatch,
 		LastRound = os.date('*t').yday + 1,				-- The day on which the last round was started. Starts on the day after the tournament is created (the first round is slightly longer to accomodate later creation times (eg. 10pm))
 		WinnerID = nil
 	}
@@ -179,10 +182,10 @@ function FindAvailableID(eventTable)
 	return nextID
 end
 
-------------------------------
 
 
-
+--***********************************************************************************-
+-------------------- FETCH:Functions for retreiving information
 
 function TeacherClassExists(ClassName, TeacherID) 	-- Checks whether a teacher already owns a class with this classname. If they do, they can't create another one as every class a teacher has must have a unique classname.
 	for i,j in ipairs(Class) do
@@ -219,16 +222,6 @@ function ConfirmClassCode(JoinCode)					-- Validate the class code provided by t
 	return false
 end
 
-function AddStudentClass(StudentID, ClassID) 		-- Add a student to a class (only once it has been validated)
-	for i,student in ipairs(StudentAccount) do
-		if StudentID == student.StudentID and not student.ClassID then
-			StudentAccount[i].ClassID = ClassID
-			return true
-		end
-	end
-	return false
-end
-
 function ValidateStudentLogin(EmailAddress, Password) 	-- Checks whether a student's login information is valid, returning their StudentID if so.
 	for i,student in ipairs(StudentAccount) do
 		if EmailAddress == student.EmailAddress and Password == student.Password then
@@ -257,14 +250,6 @@ function ValidateTeacherLogin(EmailAddress, Password) -- Checks whether a teache
 	return false
 end
 
-function ClearStudentEvents(StudentID)				-- Clear the list of missed events once they have been dealt with
-	for i,event in ipairs(StudentMissedEvent) do 
-		if event.StudentID == StudentID then
-			table.remove(StudentMissedEvent, i)
-		end
-	end
-end
-
 function SendTeacherEvents(TeacherID)				-- Return the events missed by the teacher while offline
 	local missedEvents = {}
 	for i,event in ipairs(TeacherMissedEvent) do
@@ -275,13 +260,6 @@ function SendTeacherEvents(TeacherID)				-- Return the events missed by the teac
 	return missedEvents
 end
 
-function ClearTeacherEvents(TeacherID)				-- Clear the list of missed events once they have been dealt with
-	for i,event in ipairs(TeacherMissedEvent) do
-		if event.TeacherID == TeacherID then
-			table.remove(TeacherMissedEvent, i)
-		end
-	end
-end
 
 function FetchTeacherInfo(TeacherID)				-- Returns serialized Class, StudentAccount, and Tournament tables, but shortened to include only the classes owned by a specific teacher. 
 	-- This is essentially all the information that needs to be stored by the teacher program while they are online (to avoid making constant requests from the server for baskc information)
@@ -290,7 +268,6 @@ function FetchTeacherInfo(TeacherID)				-- Returns serialized Class, StudentAcco
 	local classIDs = {}								-- All classes which belong to the teacher
 	local students = {}
 	local tournaments = {}
-	local studentNum = 0
 	local tournamentNum = 0
 
 	for i,class in ipairs(Class) do  				
@@ -310,7 +287,8 @@ function FetchTeacherInfo(TeacherID)				-- Returns serialized Class, StudentAcco
 	for i,t in ipairs(Tournament) do
 		local className = classIDs[t.ClassID]
 		if className then
-			table.insert(tournaments, { TournamentID = tournamentNum, ClassName = className, MaxDuration = t.MaxDuration, MatchesPerPerson = t.MatchesPerPerson, StartDate = t.StartDate, WinnerID = t.WinnerID})
+			table.insert(tournaments, { TournamentID = tournamentNum, ClassName = className, RoundLength = t.RoundLength, QsPerMatch = t.QsPerMatch, LastRound = t.LastRound, WinnerID = t.WinnerID })
+			tournamentNum = tournamentNum + 1
 		end
 	end
 
@@ -360,6 +338,57 @@ local function classCodeTaken(JoinCode)			-- Check if a specific joinCode has al
 	return false
 end
 
+function FindStudentClass(StudentID)			-- Returns the ID of a student's class
+	return StudentAccount[StudentID].ClassID or false
+end
+
+function FindClassID(TeacherID, ClassName)		-- Returns the ID of a class belonging to a teacher, given the name of the class
+	for i,j in ipairs(Class) do
+		if j.TeacherID == TeacherID and j.ClassName == ClassName then
+			return j.ClassID
+		end
+	end
+	return false
+end
+
+function FindTournamentRoundStart(TournamentID)			-- Returns the time allowed for each round of matches in a tournament to be completed
+	for i,t in ipairs(Tournament) do
+		if t.TournamentID == TournamentID then
+			return t.LastRound
+		end
+	end
+	return false
+end
+
+--***********************************************************************************-
+-------------------- UPDATE: Functions for adding to information in tables
+
+function AddStudentClass(StudentID, ClassID) 		-- Add a student to a class (only once it has been validated)
+	for i,student in ipairs(StudentAccount) do
+		if StudentID == student.StudentID and not student.ClassID then
+			StudentAccount[i].ClassID = ClassID
+			return true
+		end
+	end
+	return false
+end
+
+function ClearStudentEvents(StudentID)				-- Clear the list of missed events once they have been dealt with
+	for i,event in ipairs(StudentMissedEvent) do 
+		if event.StudentID == StudentID then
+			table.remove(StudentMissedEvent, i)
+		end
+	end
+end
+
+function ClearTeacherEvents(TeacherID)				-- Clear the list of missed events once they have been dealt with
+	for i,event in ipairs(TeacherMissedEvent) do
+		if event.TeacherID == TeacherID then
+			table.remove(TeacherMissedEvent, i)
+		end
+	end
+end
+
 function GenerateClassJoinCode()			-- Generates a random code to be associated with a class. It also checks the code is unique, so we don't end up with two classes with the same joinCode (however improbable that may be)
 	local code = ""
 	while classCodeTaken(code) do
@@ -370,20 +399,7 @@ function GenerateClassJoinCode()			-- Generates a random code to be associated w
 	return code
 end
 
-function FindStudentClass(StudentID)
-	return StudentAccount[StudentID].ClassID
-end
-
-
-function FindClassID(TeacherID, ClassName)
-	for i,j in ipairs(Class) do
-		if j.TeacherID == TeacherID and j.ClassName == ClassName then
-			return j.ClassID
-		end
-	end
-end
-
-function UpdateStudentRatings(StudentID, NewStudentRatings) 
+function UpdateStudentRatings(StudentID, NewStudentRatings) 	-- Replace the current student ratings with the new ones (sent by the student program)
 	StudentAccount[StudentID].Ratings = NewStudentRatings
 end
 

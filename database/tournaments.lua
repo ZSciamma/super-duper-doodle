@@ -10,7 +10,6 @@ function CheckTournamentRoundsFinished(dateTime)			-- Checks every running tourn
 			t.LastRound = t.yday
 		end
 	end
-
 end
 
 function EnrollStudents(ClassID, TournamentID)		-- Upon creation of a tournament, creates a scoreboard for every student in the class
@@ -57,8 +56,13 @@ function NextRound(TournamentID) 							-- Overall, creates the next set of matc
 	end
 
 	AddPairings(nextPairing)
+	NotifyStudentsOfNewMatch(TournamentID, nextPairing)
 
-	debug.debug()
+	for i,j in pairs(nextPairing) do						-- Automatically complete the match of the dummy player and its opponent
+		if j == -1 then CompleteMatch(i, j, 500, 0) 
+		elseif i == -1 then CompleteMatch(j, i, 0, 500)
+		end
+	end
 end
 
 
@@ -242,10 +246,63 @@ function CompleteMatch(FromScoreboardID, ToScoreboardID, Score1, Score2) 	-- Onc
 end
 
 
-function FindCurrentMatch(ScoreboardID) 	-- Returns a student's next match
-	for i,match in ipairs(StudentMatch) do
-		if match.FromScoreboardID == match.ToScoreboardID then
+function FindCurrentMatch(ScoreboardID) 	-- Returns a student's next match, and false if there is none available
+	for i,match in ipairs(IncompleteMatch) do  		-- Check if the student has already completed the match (but not their opponent)
+		if match.FromScoreboardID == ScoreboardID then
+			return false
+		end
+	end
+
+	for i,match in ipairs(StudentMatch) do			-- Check if both players have finished the match
+		if match.FromScoreboardID == ScoreboardID and not match.PointsWon then
 			return match
+		end
+	end
+
+	return false
+end
+
+function ReturnScoreboardStudent(ScoreboardID)		-- Returns the student given the ID of one of their scoreboards
+	for i,j in ipairs(Scoreboard) do
+		if j.ScoreboardID == ScoreboardID then
+			return StudentAccount[j.StudentID]
+		end
+	end
+	return false
+end
+
+--[[
+function FindScoreboardTournament(ScoreboardID)
+	for i,sc in ipairs(Scoreboard) do
+		if sc.ScoreboardID == ScoreboardID then
+			return sc.TournamentID
+		end
+	end
+end
+--]]
+
+function ReturnScoreboardTournament(ScoreboardID)
+	local TournamentID 
+	for i,sc in ipairs(Scoreboard) do
+		if sc.ScoreboardID == ScoreboardID then
+			TournamentID = sc.TournamentID
+		end
+	end
+	if not TournamentID then return false end
+	for i,t in ipairs(Tournament) do
+		if t.TournamentID == TournamentID then
+			return t
+		end
+	end
+	return false
+end
+
+
+
+function FindTournamentRoundTime(TournamentID) 
+	for i,t in ipairs(Tournament) do
+		if t.TournamentID == TournamentID then
+			return t.RoundLength
 		end
 	end
 end
