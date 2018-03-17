@@ -7,16 +7,23 @@ function Graph:new()
 	self.nodes = {}
 end
 
+function Graph:NodeExists(n)									-- True if the data given is the name of one of the graph's nodes
+	for i,j in pairs(self.nodes) do
+		print("Node: "..i)
+		if i == n then
+			return true
+		end
+	end
+	return false
+end
 
 function Graph:NodeNumber()									-- Returns total number of nodes in a graph
 	return #self.nodes
 end
 
-
 function Graph:AdjacentNodes(node)							-- Returns number of nodes adjacent to argument node
 	return self.nodes[node]:Length()
 end
-
 
 function Graph:EdgesPerNode()								-- Returns the number of edges per node. False if not all nodes have same number.
 	local length = -1
@@ -31,22 +38,18 @@ function Graph:EdgesPerNode()								-- Returns the number of edges per node. Fa
 	return length
 end
 
-
 function Graph:NewNode(newNode)
 	self.nodes[newNode] = LinkedList()					 	-- Set the index given as an argument equal to a new linked list.
 end
-
 
 function Graph:NewEdge(node, connectedNode, value)
 	self.nodes[node]:NewNode({ connectedNode, value })		-- Add a value to the linked list representing the node. This is an edge.
 end
 
-
 function Graph:TotalWeight(node)							-- Calculates the sum of the weights of the edges leaving a node 
 	if not self.nodes[node] then return false end
 	return self.nodes[node]:ScoreTotal()
 end
-
 
 function Graph:TotalNeighbourWeight(node)					-- Calculates sum of the TotalWeight for every neighbour (connected node)
 	local neighbourWeight = 0
@@ -68,11 +71,9 @@ function Graph:TotalNeighbourWeight(node)					-- Calculates sum of the TotalWeig
 	return neighbourWeight - max - min						-- Median-Buchholtz: subtract strongest and weakest opponents
 end
 
-
 function Graph:NodeEdges(node)								-- Returns the number of edges of a node
 	return self.nodes[node]:Length()
 end
-
 
 function Graph:AreConnected(node1, node2)					-- Checks if node1 and node2 are connected
 	return (self.nodes[node1]:Contains(node2) or self.nodes[node2]:Contains(node1))

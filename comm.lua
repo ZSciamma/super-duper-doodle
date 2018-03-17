@@ -173,12 +173,15 @@ end
 
 local function StudentMatchFinished(peer, score)              -- Response to a student completing a match. Checks whether the opponent has completed the match yet.
     local student = identifyPeer(peer)
-    print("StudentID: "..(student.ID or "nil"))
     local scoreboardID1 = FindCurrentScoreboardID(student.ID)
+    local tournament = ReturnScoreboardTournament(scoreboardID1)
     local matchComplete = CheckOpponentMatchComplete(scoreboardID1)
     if matchComplete then
+        print("StudentID: "..(student.ID or "nil"))
+        print("Match Complete: "..tournament.TournamentID)
         local incompleteMatch = GetIncompleteMatchAgainst(student.ID)
         CompleteMatch(incompleteMatch.FromScoreboardID, incompleteMatch.ToScoreboardID, incompleteMatch.Score, score)
+        CheckRoundFinished(tournament.TournamentID, os.date('*t'))
     else
         print("StudentID: "..(student.ID or "nil"))
         print("ScoreboardID: "..(scoreboardID1 or "nil"))
@@ -217,15 +220,16 @@ end
 
 local function RemindStudentOfMatch(peer, StudentID)        -- When a student logs in, their program is reminded of the current match available for them to participate in.
     local scoreboardID = FindCurrentScoreboardID(StudentID)
-    if not ScoreboardID then return end                     -- Return if no tournament is available
+    if not scoreboardID then return end                     -- Return if no tournament is available
     local match = FindCurrentMatch(scoreboardID)
-    if not match then return end                            -- Return if no match is available
-
-    local student1 = ReturnScoreboardStudent(match.FromScoreboardID)
-    local student2 = ReturnScoreboardStudent(match.ToScoreboardID)
     local tournament = ReturnScoreboardTournament(scoreboardID)
 
-    SendInfo(peer, "CurrentMatch" + tournament.RoundLength + tournament.QsPerMatch + tournament.LastRound + student1.Ratings + student2.Ratings + match.QuestionSeed, true, StudentID)
+    SendInfo(peer, "CurrentTournament" + tournament.RoundLength + tournament.QsPerMatch)
+    if match then                          -- If no match is available
+        local student1 = ReturnScoreboardStudent(match.FromScoreboardID)
+        local student2 = ReturnScoreboardStudent(match.ToScoreboardID)
+        SendInfo(peer, "CurrentMatch" + tournament.RoundLength + tournament.QsPerMatch + tournament.LastRound + student1.Ratings + student2.Ratings + match.QuestionSeed, true, StudentID)
+    end
 end
 
 local function LoginStudent(peer, email, password)                            -- Response to a student's request to log in. Validates their information and, if correct, logs them in, adding them to the list of online clients and sending back information the student program may need (eg. classname if any)
@@ -236,7 +240,7 @@ local function LoginStudent(peer, email, password)                            --
         peer:send("LoginSuccess" + (className or 0) + ratings)          -- Send all info needed by the student: classname, ratings. This does not pass through the SendInfo function since the student is not yet in the list of clients online (they are considered offline).
         addClient(peer, true, StudentID)
         SendStudentMissedEvents(peer, StudentID)
-        if FindStudentClass(StudentID) then RemindStudentOfMatch(peer, StudentID) end
+        if IsStudentInMatch(StudentID) then RemindStudentOfMatch(peer, StudentID) end
     else 
         peer:send("LoginFail" + "Please verify all fields are correct.")
     end
@@ -372,6 +376,11 @@ function NotifyStudentsOfNewMatch(TournamentID, nextPairings)
             SendInfo(studentPeer1, "NewMatch" + startDay + student1.Ratings + student2.Ratings + match.QuestionSeed, true, student1.StudentID)
         end
     end
+end
+
+function SendTeacherTournamentEnd(teacherID, classname, ranking)
+    local teacherPeer = findTeacherPeer(teacherID)
+    SendInfo(teacherPeer, "TournamentFinished" + classname + ranking, false, teacherID)
 end
 
 

@@ -5,10 +5,27 @@
 
 function CheckTournamentRoundsFinished(dateTime)			-- Checks every running tournament 
 	for i,t in ipairs(Tournament) do
-		if (not t.WinnerID and dateTime.yday >= t.LastRound + t.RoundLength) then		-- Tournament needs updating if it is incomplete but the previous round has timed out
-			NextRound(t.TournamentID)
-			t.LastRound = t.yday
+		CheckRoundFinished(t.TournamentID, dateTime)
+	end
+end
+
+function CheckRoundFinished(TournamentID, dateTime)				-- Checks whether the current round of a tournament is finished
+	local t
+	for i,j in ipairs(Tournament) do
+		if j.TournamentID == TournamentID then
+			t = j
 		end
+	end
+	print("TournamentID: "..t.TournamentID)
+
+	if not t.WinnerID then 		-- Tournament needs updating if it is incomplete but the previous round has timed out
+		local nextRoundComplete = NextRound(t.TournamentID)
+		if not nextRoundComplete and dateTime.yday >= t.LastRound + t.RoundLength then 		-- Create next round if previous round has timed out
+			--Complete the current match (complete any unfinished match)
+			nextRoundComplete = NextRound(t.TournamentID)
+		end
+
+		if nextRoundComplete then t.LastRound = dateTime.yday end 	-- Update last round start date if a new round has now started
 	end
 end
 
@@ -31,6 +48,7 @@ function FindCurrentScoreboardID(StudentID) -- Finds the latest scoreboard of a 
 			tournamentID = t.TournamentID
 		end
 	end
+	if not tournamentID then return false end
 	for i,sc in ipairs(Scoreboard) do
 		if sc.StudentID == StudentID and sc.TournamentID == tournamentID then
 			return sc.ScoreboardID
@@ -40,18 +58,24 @@ end
 
 function NextRound(TournamentID) 							-- Overall, creates the next set of matches in a tournament (every pairing for the next round). Every player in the tournament will play in every round
 	local graph = CreateTournamentGraph(TournamentID)
+	if not graph then print("No graph created"); return false end							-- Return if the current round is unfinished
 	local rounds = graph:EdgesPerNode()
 	local playerCount = graph:NodeNumber()
 	local finalRound = math.ceil(math.log(playerCount, 2))
+	graph:Print()
 
 	local rankedStudents = TournamentRanking(graph)
 	local nextPairing = {}
 
 	if rounds == 0 then
+		print("Tournament Starting")
 		nextPairing = FirstRoundMatches(rankedStudents)
 	elseif rounds == finalRound then
+		print("Tournament Finished")
 		FinishTournament(TournamentID, rankedStudents, graph)
 	else
+		print("Tournament Ongoing")
+		print("Rounds complete: "..rounds)
 		nextPairing = TournamentPairing(rankedStudents, graph)
 	end
 
@@ -59,10 +83,10 @@ function NextRound(TournamentID) 							-- Overall, creates the next set of matc
 	NotifyStudentsOfNewMatch(TournamentID, nextPairing)
 
 	for i,j in pairs(nextPairing) do						-- Automatically complete the match of the dummy player and its opponent
-		if j == -1 then CompleteMatch(i, j, 500, 0) 
-		elseif i == -1 then CompleteMatch(j, i, 0, 500)
-		end
+		if ScoreboardStudent(j) == -1 then CompleteMatch(i, j, 500, 0) end
 	end
+
+	return true
 end
 
 
@@ -99,6 +123,7 @@ function CreateTournamentGraph(TournamentID)	-- Creates a graph to represent the
 	-- Add every StudentMatch as an edge to the graph:
 	for i,s in ipairs(StudentMatch) do
 		if students[s.FromScoreboardID] then	-- If FromScoreboardID is in the tournament, then so is ToScoreboardID.
+			if not s.PointsWon then return false end	-- If PointsWon is nil, the current round is unfinished
 			tournamentG:NewEdge(s.FromScoreboardID, s.ToScoreboardID, s.PointsWon)		-- Add tournament match as an edge
 		end
 	end
@@ -244,6 +269,12 @@ function CompleteMatch(FromScoreboardID, ToScoreboardID, Score1, Score2) 	-- Onc
 			match.PointsWon = 3 - player1Points
 		end
 	end
+	-- Remove any incomplete matches:
+	for i,j in ipairs(IncompleteMatch) do
+		if (j.FromScoreboardID == FromScoreboardID and j.ToScoreboardID == j.ToScoreboardID) or (j.FromScoreboardID == ToScoreboardID and j.ToScoreboardID == FromScoreboardID) then
+			table.remove(IncompleteMatch, i)
+		end
+	end
 end
 
 
@@ -271,16 +302,6 @@ function ReturnScoreboardStudent(ScoreboardID)		-- Returns the student given the
 	end
 	return false
 end
-
---[[
-function FindScoreboardTournament(ScoreboardID)
-	for i,sc in ipairs(Scoreboard) do
-		if sc.ScoreboardID == ScoreboardID then
-			return sc.TournamentID
-		end
-	end
-end
---]]
 
 function ReturnScoreboardTournament(ScoreboardID)	-- Return the record for the tournament to which a scoreboard belongs
 	local TournamentID 
@@ -311,39 +332,106 @@ function CreateMatchSeed()	-- Creates the reference of the seed from which match
 	return seed
 end
 
+function IsStudentInMatch(StudentID)	-- Checks if a student currently has a match to complete
+	print("Student: "..StudentID)
+	local classID
+	local class
+	local scoreboard
+	local match
 
---[[
-function RoundNumber(TournamentID)				-- Finds the number of rounds compeleted in a tournament by looking at every match of a specific student
-	local inspected = 0
-	for i,scoreboard in ipairs(Scoreboard) do
-		if scoreboard.TournamentID == TournamentID then
-			inspected = scoreboard.ScoreboardID
+	classID = FindStudentClass(StudentID)
+	if not classID then return false end
+
+	for i,c in ipairs(Class) do
+		if c.ClassID == classID then
+			class = c
 		end
 	end
 
-	local rounds = 0
-	for i,match in ipairs(StudentMatch) do
-		if match.FromScoreboardID == inspected then
-			rounds = rounds + 1
+	for i,sc in ipairs(Scoreboard) do
+		if sc.StudentID == StudentID then
+			scoreboard = sc
 		end
 	end
+	if not scoreboard then return false end
 
-	return rounds
+	for i,m in ipairs(StudentMatch) do
+		if m.FromScoreboardID == scoreboard.ScoreboardID and not m.PointsWon then
+			match = m
+		end
+	end
+	if not match then return false end
+
+	local opponent = ReturnScoreboardStudent(match.ToScoreboardID)
+	if not opponent then return false end 					-- Check that opponent isn't the bye student
+
+	for i,im in ipairs(IncompleteMatch) do
+		if im.FromScoreboardID == scoreboard.ScoreboardID then
+			return false
+		end
+	end
+	return true
 end
---]]
 
-
---[[
-function PlayerCount(TournamentID)
-	local playerCount = 0
-	for i,scoreboard in ipairs(Scoreboard) do
-		if scoreboard.TournamentID == TournamentID then
-			playerCount = playerCount + 1
+function ScoreboardStudent(ScoreboardID) 		-- Returns the ID of the student who owns a scoreboard (given the ScoreboardID)
+	for i,sc in ipairs(Scoreboard) do
+		if sc.ScoreboardID == ScoreboardID then
+			return sc.StudentID
 		end
 	end
-	return playerCount
+	return false
 end
---]]
 
+function FindTournamentTeacher(TournamentID)	-- Returns the TeacherID of the teacher who created a tournament
+	for i,class in ipairs(Class) do
+		if class.TournamentID == TournamentID then
+			return class.TeacherID
+		end
+	end
+	return false
+end
+
+function FindTournamentClassName(TournamentID)				-- Returns the class name of the class in the tournament
+	for i,class in ipairs(Class) do
+		if class.TournamentID == TournamentID then
+			return class.FindTournamentClassName
+		end
+	end
+	return false
+end
+
+function FinishTournament(TournamentID, rankedStudents, graph)
+	-- Send student ranking to teacher:
+	local teacherID = FindTournamentTeacher(TournamentID)
+	local classname = FindTournamentClassName(TournamentID)
+	local ranking = table.serialize(rankedStudents)
+	SendTeacherTournamentEnd(teacherID, classname, ranking)
+
+	-- Send winner and ranking to every student:
+
+
+
+	-- Delete tournament:
+	for i,t in ipairs(Tournament) do
+		if t.TournamentID == TournamentID then
+			Tournament[i] = nil
+		end
+	end
+
+
+	-- Delete every match in the tournament:
+	for i,m in ipairs(StudentMatch) do
+		if graph:NodeExists(m.FromScoreboardID) then		-- Check if scoreboard is part of this tournament
+			StudentMatch[i] = nil
+		end
+	end
+
+	-- Delete every scoreboard in the tournament:
+	for i,sc in ipairs(Scoreboard) do						-- Check if this scoreboard is in the tournament
+		if graph:NodeExists(sc.ScoreboardID) then
+			Scoreboard[i] = nil
+		end
+	end
+end
 
 
