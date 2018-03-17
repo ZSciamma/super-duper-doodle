@@ -134,10 +134,11 @@ function addScoreboard(TournamentID, StudentID)
 	return 
 end
 
-function addStudentMatch(FromScoreboardID, ToScoreboardID)
+function addStudentMatch(FromScoreboardID, ToScoreboardID, QuestionSeed)
 	local newStudentMatch = {
 		FromScoreboardID = FromScoreboardID,
 		ToScoreboardID = ToScoreboardID,
+		QuestionSeed = QuestionSeed,
 		PointsWon = nil
 	}
 	table.insert(StudentMatch, newStudentMatch)

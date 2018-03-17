@@ -26,13 +26,13 @@ end
 function FindCurrentScoreboardID(StudentID) -- Finds the latest scoreboard of a student. This correponds to a student's registration in a tournament; only the scoreboard for the tournament currently running will be returned.
 	local classID = StudentAccount[StudentID].ClassID
 	local tournamentID = 0
-	for i,class in ipairs(Class) do
-		if Class.ClassID == classID then
-			tournamentID = Class.TournamentID
+	for i,t in ipairs(Tournament) do
+		if t.ClassID == classID then
+			tournamentID = t.TournamentID
 		end
 	end
 	for i,sc in ipairs(Scoreboard) do
-		if sc.TournamentID == tournamentID then
+		if sc.StudentID == StudentID and sc.TournamentID == tournamentID then
 			return sc.ScoreboardID
 		end
 	end
@@ -198,8 +198,9 @@ end
 
 
 function AddPairings(nextPairing) 		-- Once every pair for the next round has been chosen, add these to the StudentMatch table with a nil score
+	local seed = CreateMatchSeed()		-- One seed for the entire tournament, since each player will only use it once
 	for i,j in pairs(nextPairing) do
-		addStudentMatch(i, j)
+		addStudentMatch(i, j, seed)
 	end
 end
 
@@ -214,14 +215,14 @@ function GetIncompleteMatchAgainst(ScoreboardID)	-- A student has completed the 
 end
 
 
-function CheckMatchComplete(ScoreboardID)	-- Checks whether a student registered in a tournament has yet to complete the match in the current round
+function CheckOpponentMatchComplete(ScoreboardID)	-- Checks whether a student registered in a tournament has yet to complete the match in the current round
 	for i,j in ipairs(StudentMatch) do
-		if j.FromScoreboardID == ScoreboardID and StudentMatch.PointsWon then
+		if j.TpScoreboardID == ScoreboardID and StudentMatch.PointsWon then
 			return true
 		end
 	end
 	for i,j in ipairs(IncompleteMatch) do
-		if j.FromScoreboardID == ScoreboardID then
+		if j.ToScoreboardID == ScoreboardID then
 			return true
 		end
 	end
@@ -281,7 +282,7 @@ function FindScoreboardTournament(ScoreboardID)
 end
 --]]
 
-function ReturnScoreboardTournament(ScoreboardID)
+function ReturnScoreboardTournament(ScoreboardID)	-- Return the record for the tournament to which a scoreboard belongs
 	local TournamentID 
 	for i,sc in ipairs(Scoreboard) do
 		if sc.ScoreboardID == ScoreboardID then
@@ -297,15 +298,19 @@ function ReturnScoreboardTournament(ScoreboardID)
 	return false
 end
 
-
-
-function FindTournamentRoundTime(TournamentID) 
+function FindTournamentRoundTime(TournamentID) 	-- Return the time each tounament round lasts, given the tournament ID
 	for i,t in ipairs(Tournament) do
 		if t.TournamentID == TournamentID then
 			return t.RoundLength
 		end
 	end
 end
+
+function CreateMatchSeed()	-- Creates the reference of the seed from which match questions will be generated. This is thick-client computing: minimum effort is given by the server while still ensuring the two students get the same questions in the match
+	local seed = love.math.random(1, 10000000)
+	return seed
+end
+
 
 --[[
 function RoundNumber(TournamentID)				-- Finds the number of rounds compeleted in a tournament by looking at every match of a specific student

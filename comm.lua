@@ -173,17 +173,21 @@ end
 
 local function StudentMatchFinished(peer, score)              -- Response to a student completing a match. Checks whether the opponent has completed the match yet.
     local student = identifyPeer(peer)
+    print("StudentID: "..(student.ID or "nil"))
     local scoreboardID1 = FindCurrentScoreboardID(student.ID)
-    local matchComplete = CheckMatchComplete(scoreboardID1)
+    local matchComplete = CheckOpponentMatchComplete(scoreboardID1)
     if matchComplete then
         local incompleteMatch = GetIncompleteMatchAgainst(student.ID)
         CompleteMatch(incompleteMatch.FromScoreboardID, incompleteMatch.ToScoreboardID, incompleteMatch.Score, score)
     else
+        print("StudentID: "..(student.ID or "nil"))
+        print("ScoreboardID: "..(scoreboardID1 or "nil"))
         local currentMatch = FindCurrentMatch(scoreboardID1)
         addIncompleteMatch(currentMatch.FromScoreboardID, currentMatch.ToScoreboardID, score)
     end
 end
 
+--[[
 local function SendNextGame(peer)                 -- Response to student asking for the next match. Sends information about the next match to the student (or appropriate response if none is available)
     local peerInfo = identifyPeer(peer)
     local studentID = peerInfo.ID
@@ -199,8 +203,8 @@ local function SendNextGame(peer)                 -- Response to student asking 
     else
         SendInfo(peer, "NoNewGames", true, studentID)
     end
-
 end
+--]]
 
 local function SendStudentMissedEvents(peer, ID)  -- Called when a student logs in. Checks for any messages the student missed while offline, sends them, and deletes them from the StudentMissedEvent table.
     local missedEvents = {}
@@ -221,7 +225,7 @@ local function RemindStudentOfMatch(peer, StudentID)        -- When a student lo
     local student2 = ReturnScoreboardStudent(match.ToScoreboardID)
     local tournament = ReturnScoreboardTournament(scoreboardID)
 
-    SendInfo(peer, "CurrentMatch" + tournament.RoundLength + tournament.QsPerMatch + tournament.LastRound + student1.Ratings + student2.Ratings, true, StudentID)
+    SendInfo(peer, "CurrentMatch" + tournament.RoundLength + tournament.QsPerMatch + tournament.LastRound + student1.Ratings + student2.Ratings + match.QuestionSeed, true, StudentID)
 end
 
 local function LoginStudent(peer, email, password)                            -- Response to a student's request to log in. Validates their information and, if correct, logs them in, adding them to the list of online clients and sending back information the student program may need (eg. classname if any)
@@ -290,7 +294,7 @@ local function respondToMessage(event)        -- Defines its own protocol for co
         ["StudentLogout"] = function(peer, rating) LogoutStudent(peer, rating) end,
         ["TeacherLogout"] = function(peer) LogoutTeacher(peer) end,
         ["NewTournament"] = function(peer, classname, roundTime, qsPerMatch) MakeNewTournament(peer, classname, roundTime, qsPerMatch) end,
-        ["StudentMatchFinished"] = function(peer, score) UpdateMatchResult(peer, score) end,
+        ["StudentMatchFinished"] = function(peer, score) StudentMatchFinished(peer, score) end,
 
         -- Potentially need fixing:
 
@@ -357,6 +361,7 @@ end
 function NotifyStudentsOfNewMatch(TournamentID, nextPairings)
     local startDay = FindTournamentRoundStart(TournamentID)
     for scoreboard1,scoreboard2 in pairs(nextPairings) do
+        local match = FindCurrentMatch(scoreboard1)
         local student1 = ReturnScoreboardStudent(scoreboard1)
         local studentPeer1 = findStudentPeer((student1 or { StudentID = -1 }).StudentID)
         local student2 = ReturnScoreboardStudent(scoreboard2)
@@ -364,7 +369,7 @@ function NotifyStudentsOfNewMatch(TournamentID, nextPairings)
         if not student1 or not student2 then                -- Check whether one of the students is the dummy (issued when there is an odd number of players)
             if not student2 then SendInfo(studentPeer1, "ByeReceived", true, student1.StudentID) end
         else
-            SendInfo(studentPeer1, "NewMatch" + startDay + student1.Ratings + student2.Ratings, true, student1.StudentID)
+            SendInfo(studentPeer1, "NewMatch" + startDay + student1.Ratings + student2.Ratings + match.QuestionSeed, true, student1.StudentID)
         end
     end
 end
