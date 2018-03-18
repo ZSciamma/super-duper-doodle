@@ -74,7 +74,7 @@ local function split(peerMessage)     -- Splits every message received into the 
             if dots >= 5 then
                 local word = string.sub(peerMessage, last, i - 6)
                 if word == "0" then word = "" end                     -- Account for the server sending blank info
-                last = i 
+                last = i
                 table.insert(messageTable, word)
             end
             dots = 0
@@ -96,7 +96,7 @@ local function removeClient(peer)
 end
 
 local function listEvent(message, isStudent, ID)  -- When a student or teacher is offline, add the outgoing message to the appropriate MissedEvent table (Student or Teacher). This message is to be sent to them when they next come online.
-    if isStudent then 
+    if isStudent then
         addStudentMissedEvent(ID, message)
     elseif not isStudent then
         addTeacherMissedEvent(ID, message)
@@ -116,8 +116,8 @@ end
 local function MakeNewClass(peer, classname)              -- Respond to teacher asking to create a new class. Checks whether the class is valid.
     local peerInfo = identifyPeer(peer)
     local teacherID = peerInfo.ID                       -- Only valid if the peer is a teacher (must be a teacher to reach this subroutine)
-    if TeacherClassExists(classname, teacherID) then 
-        SendInfo(peer, "NewClassReject" + classname + "This class already exists. Please choose a different name.", false, peerInfo.ID)                     
+    if TeacherClassExists(classname, teacherID) then
+        SendInfo(peer, "NewClassReject" + classname + "This class already exists. Please choose a different name.", false, peerInfo.ID)
     else
         local classJoinCode = GenerateClassJoinCode()
         addClass(classname, teacherID, classJoinCode)
@@ -132,7 +132,7 @@ local function AddStudentToClass(peer, classJoinCode)     -- Respond to student 
     local student = StudentInfo(studentID)
     local class = ConfirmClassCode(classJoinCode)
     if class then
-        local classAddSuccess = AddStudentClass(studentID, class.classID) 
+        local classAddSuccess = AddStudentClass(studentID, class.classID)
         if classAddSuccess then
             SendInfo(peer, "JoinClassSuccess" + class.className, true, studentID)
         else                                        -- Error handling: this should never be called. The student can't get to the joinCode screen if they are already in a class. This ensures the server will function as normal if this does happen.
@@ -163,6 +163,7 @@ local function MakeNewTournament(peer, classname, roundTime, qsPerMatch)  -- Res
     if ClassTournamentExists(classID) then
         SendInfo(peer, "NewTournamentReject" + classname + "This class is already in a tournament. Please wait for it to finish.", false, teacherID)
     else
+        DeletePreviousTournament(classID)
         local tournamentID = addTournament(classID, roundTime, qsPerMatch)
         SendInfo(peer, "NewTournamentAccept" + classname + roundTime + qsPerMatch, false, teacherID)
         NotifyStudentsOfTournament(classID, roundTime, qsPerMatch)
@@ -179,7 +180,7 @@ local function StudentMatchFinished(peer, score)              -- Response to a s
     if matchComplete then
         print("StudentID: "..(student.ID or "nil"))
         print("Match Complete: "..tournament.TournamentID)
-        local incompleteMatch = GetIncompleteMatchAgainst(student.ID)
+        local incompleteMatch = GetIncompleteMatchAgainst(scoreboardID1)
         CompleteMatch(incompleteMatch.FromScoreboardID, incompleteMatch.ToScoreboardID, incompleteMatch.Score, score)
         CheckRoundFinished(tournament.TournamentID, os.date('*t'))
     else
@@ -200,7 +201,7 @@ local function SendNextGame(peer)                 -- Response to student asking 
         return
     end
     local gameID = FindTournamentGame(studentID)     -- Send student the info for both players. The student program calculates the questions, easing the central server's workload.
-    if gameID then 
+    if gameID then
         local ratings = FindGameRatings(gameID)
         SendInfo(peer, "NextGame" + ratings[1] + ratings[2], true, studentID)
     else
@@ -241,7 +242,7 @@ local function LoginStudent(peer, email, password)                            --
         addClient(peer, true, StudentID)
         SendStudentMissedEvents(peer, StudentID)
         if IsStudentInMatch(StudentID) then RemindStudentOfMatch(peer, StudentID) end
-    else 
+    else
         peer:send("LoginFail" + "Please verify all fields are correct.")
     end
 end
@@ -262,14 +263,14 @@ local function LoginTeacher(peer, email, password)        -- Response to a teach
         peer:send("LoginSuccess" + teacherInfo.students + teacherInfo.classes + teacherInfo.tournaments)    -- Send all info needed by the teacher: classes
         addClient(peer, false, TeacherID)
         SendTeacherMissedEvents(peer, TeacherID)
-    else 
+    else
         peer:send("LoginFail" + "Please verify all fields are correct.")
     end
 end
 
-local function LogoutStudent(peer, newRating)     -- Response to student request to log out. 
+local function LogoutStudent(peer, newRating)     -- Response to student request to log out.
     local student = identifyPeer(peer)
-    if student then 
+    if student then
         peer:send("LogoutSuccess")          -- Sends message directly to student and not through the SendInfo function, since the student will be removed from the client list.
         UpdateStudentRatings(student.ID, newRating)
         removeClient(peer)                  -- Remove the student from the list of users logged in.
@@ -277,14 +278,14 @@ local function LogoutStudent(peer, newRating)     -- Response to student request
 end
 
 local function LogoutTeacher(peer)                -- Response to teacher request to log out.
-    if peer then 
+    if peer then
         peer:send("LogoutSuccess")
         removeClient(peer)
     end
 end
 
-local function respondToMessage(event)        -- Defines its own protocol for communication. 
-    -- This function lists every request that can be received, describing the action that should be taken and the breakdown of information in the message. 
+local function respondToMessage(event)        -- Defines its own protocol for communication.
+    -- This function lists every request that can be received, describing the action that should be taken and the breakdown of information in the message.
     local messageTable = split(event.data)
     local first = messageTable[1]                   -- Find the description attached to the message
     table.remove(messageTable, 1)                   -- Remove the description, leaving only the rest of the data
@@ -356,10 +357,15 @@ end
 
 function Server:update(dt)              -- Called every dt seconds to update the server (to see if any new messages have arrived)
     event = host:service(100)
-    if event then 
+    if event then
         table.insert(events, event)
-        handleEvent(event) 
+        handleEvent(event)
     end
+end
+
+-- DEBUG:
+function Server:keypressed(key)
+   if key == 'n' then clients = {}; events = {} end
 end
 
 function NotifyStudentsOfNewMatch(TournamentID, nextPairings)
@@ -373,6 +379,10 @@ function NotifyStudentsOfNewMatch(TournamentID, nextPairings)
         if not student1 or not student2 then                -- Check whether one of the students is the dummy (issued when there is an odd number of players)
             if not student2 then SendInfo(studentPeer1, "ByeReceived", true, student1.StudentID) end
         else
+            print(startDay)
+            print(student1.Ratings)
+            print(student2.Ratings)
+            print(match.QuestionSeed)
             SendInfo(studentPeer1, "NewMatch" + startDay + student1.Ratings + student2.Ratings + match.QuestionSeed, true, student1.StudentID)
         end
     end
@@ -382,5 +392,3 @@ function SendTeacherTournamentEnd(teacherID, classname, ranking)
     local teacherPeer = findTeacherPeer(teacherID)
     SendInfo(teacherPeer, "TournamentFinished" + classname + ranking, false, teacherID)
 end
-
-

@@ -1,12 +1,22 @@
 -- The following functions could be in table.lua. They are a mixture of algorithmic and database functions used in creating tournament pairings,
 -- fetching matches, completing matches, and finding tournament winners (for example). Within this file, in comments, the terms scoreboard
 -- and student will be used interchangeably, since a scoreboard represents a student's registration within a tournament, and this file is not
--- concerned with the registrations of students in completed tournaments (in the past). 
+-- concerned with the registrations of students in completed tournaments (in the past).
 
-function CheckTournamentRoundsFinished(dateTime)			-- Checks every running tournament 
+function CheckTournamentRoundsFinished(dateTime)			-- Checks every running tournament
 	for i,t in ipairs(Tournament) do
 		CheckRoundFinished(t.TournamentID, dateTime)
 	end
+end
+
+function DeletePreviousTournament(ClassID)					-- When creating a new tournament, the previous tounament for that class is deleted
+	for i,t in ipairs(Tournament) do
+		if t.ClassID == ClassID then
+			Tournament[i] = nil
+			return true
+		end
+	end
+	return false
 end
 
 function CheckRoundFinished(TournamentID, dateTime)				-- Checks whether the current round of a tournament is finished
@@ -18,7 +28,7 @@ function CheckRoundFinished(TournamentID, dateTime)				-- Checks whether the cur
 	end
 	print("TournamentID: "..t.TournamentID)
 
-	if not t.WinnerID then 		-- Tournament needs updating if it is incomplete but the previous round has timed out
+	if not t.FinalRanking then 		-- Tournament needs updating if it is incomplete but the previous round has timed out
 		local nextRoundComplete = NextRound(t.TournamentID)
 		if not nextRoundComplete and dateTime.yday >= t.LastRound + t.RoundLength then 		-- Create next round if previous round has timed out
 			--Complete the current match (complete any unfinished match)
@@ -99,7 +109,7 @@ function FirstRoundMatches(rankedStudents) 		-- Create a random pairing of stude
 			while nextPairing[rankedStudents[rand].ID] do 		-- Find a new match if the other student is already paired
 				rand = love.math.random(i + 1, #rankedStudents)
 			end
-			nextPairing[student1] = rankedStudents[rand].ID 	
+			nextPairing[student1] = rankedStudents[rand].ID
 			nextPairing[rankedStudents[rand].ID] = student1
 		end
 	end
@@ -133,20 +143,20 @@ end
 
 
 function GraphToScoreboard(graph)  		-- Convert a graph into a table where every index represents a student scoreboard ID, pointing to the student's total score in the tournament thus far.
-	local l = {} 
-	for i,j in pairs(graph.nodes) do 
-		l[i] = graph:TotalWeight(i) 
-	end 
-	return l 
+	local l = {}
+	for i,j in pairs(graph.nodes) do
+		l[i] = graph:TotalWeight(i)
+	end
+	return l
 end
 
 
 function GraphToList(graph) 			-- Convert a graph to a list of tables. Each subtable contains the ID and total score of the student in this tournament. This form allows for easy sorting of the list.
-	local l = {} 
-	for i,j in pairs(graph.nodes) do 
-		table.insert(l, { score = graph:TotalWeight(i), ID = i }) 
-	end 
-	return l 
+	local l = {}
+	for i,j in pairs(graph.nodes) do
+		table.insert(l, { score = graph:TotalWeight(i), ID = i })
+	end
+	return l
 end
 
 
@@ -157,7 +167,7 @@ function TournamentRanking(graph)					-- Finds a pairing for every student for t
 	rankedStudents = GraphToList(graph)
 	rankedStudents = mergeSort(rankedStudents, graph)		-- Sorts the students in order of decreasing score (resolving ties)
 
-	return rankedStudents		
+	return rankedStudents
 end
 
 
@@ -170,7 +180,7 @@ function TournamentPairing(rankedStudents, graph)	-- Gets the next pairing in th
 			local student1 = rankedStudents[i].ID
 			local student2 = rankedStudents[j].ID
 			if nextPairing[student1] then break end
-			if not graph:AreConnected(student1, student2) and not nextPairing[student2] then	
+			if not graph:AreConnected(student1, student2) and not nextPairing[student2] then
 			-- ^ Only pair these students if they haven't been paired before and neither is currently paired
 				nextPairing[student1] = student2
 				nextPairing[student2] = student1
@@ -200,18 +210,18 @@ function mergeSort(list, graph)						-- Takes a table in the format { score = _,
 		second = mergeSort(second, graph)
 	end
 
-	for i = 1, (#first + #second) do					
+	for i = 1, (#first + #second) do
 		if #second == 0 or (first[1] or { score = 0 }).score > second[1].score then
 		-- ^ Checks if second table is empty or has a smaller head value. Lazy evaluation means	no errors if second table is empty.
 		-- ^ { score = 0 } to avoid any errors if the first list is empty
 			table.insert(sorted, first[1])
 			table.remove(first, 1)
-		elseif #first == 0 or (second[1]).score > first[1].score or graph:TotalWeight(second[1].ID) > graph:TotalWeight(first[1].ID) then							
+		elseif #first == 0 or (second[1]).score > first[1].score or graph:TotalWeight(second[1].ID) > graph:TotalWeight(first[1].ID) then
 		-- ^ Checks if first table is empy or has a smaller head value. Second table is never empty here (tested in first statement above)
 		-- ^ Also uses the Median Buchholtz System (total sum of opponents except greatest and least) to resolve any ties
 			table.insert(sorted, second[1])
 			table.remove(second, 1)
-		else 									
+		else
 		-- Here, neither table is empty and the head items have equal scores, but the opponent score sum is greater for the first table head
 			table.insert(sorted, first[1])
 			table.remove(first, 1)
@@ -296,7 +306,7 @@ end
 
 function ReturnScoreboardStudent(ScoreboardID)		-- Returns the student given the ID of one of their scoreboards
 	for i,j in ipairs(Scoreboard) do
-		if j.ScoreboardID == ScoreboardID then
+		if j.ScoreboardID == ScoreboardID and j.StudentID ~= -1 then
 			return StudentAccount[j.StudentID]
 		end
 	end
@@ -304,7 +314,7 @@ function ReturnScoreboardStudent(ScoreboardID)		-- Returns the student given the
 end
 
 function ReturnScoreboardTournament(ScoreboardID)	-- Return the record for the tournament to which a scoreboard belongs
-	local TournamentID 
+	local TournamentID
 	for i,sc in ipairs(Scoreboard) do
 		if sc.ScoreboardID == ScoreboardID then
 			TournamentID = sc.TournamentID
@@ -382,41 +392,41 @@ function ScoreboardStudent(ScoreboardID) 		-- Returns the ID of the student who 
 	return false
 end
 
-function FindTournamentTeacher(TournamentID)	-- Returns the TeacherID of the teacher who created a tournament
+function ReturnTournamentClass(TournamentID)	-- Returns the record for the class registered in a tournament
+	local classID
+	for i,t in ipairs(Tournament) do
+		if t.TournamentID == TournamentID then
+			classID = t.ClassID
+		end
+	end
 	for i,class in ipairs(Class) do
-		if class.TournamentID == TournamentID then
-			return class.TeacherID
+		if class.ClassID == classID then
+			return class
 		end
 	end
 	return false
 end
 
-function FindTournamentClassName(TournamentID)				-- Returns the class name of the class in the tournament
-	for i,class in ipairs(Class) do
-		if class.TournamentID == TournamentID then
-			return class.FindTournamentClassName
-		end
+function ConvertScoreboardToStudent(scoreboardRanks)				-- Takes a table of tables of the form { ID = _, score = _ } and converts every ScoreboardID to the StudentID of the appropriate student
+	local studentRanks = {}
+	for i,j in ipairs(scoreboardRanks) do
+		local student = ReturnScoreboardStudent(j.ID)
+		if student then table.insert(studentRanks, { ID = student.StudentID, score = j.score }) end
 	end
-	return false
+	return studentRanks
 end
 
-function FinishTournament(TournamentID, rankedStudents, graph)
+function FinishTournament(TournamentID, rankedStudents, graph)	-- Called at the end of a tournament. Deletes records involved and send final tournament information to teacher and students
 	-- Send student ranking to teacher:
-	local teacherID = FindTournamentTeacher(TournamentID)
-	local classname = FindTournamentClassName(TournamentID)
+	local class = ReturnTournamentClass(TournamentID)
+	rankedStudents = ConvertScoreboardToStudent(rankedStudents)
 	local ranking = table.serialize(rankedStudents)
-	SendTeacherTournamentEnd(teacherID, classname, ranking)
+	print(ranking)
+	SendTeacherTournamentEnd(class.TeacherID, class.ClassName, ranking)
 
 	-- Send winner and ranking to every student:
 
 
-
-	-- Delete tournament:
-	for i,t in ipairs(Tournament) do
-		if t.TournamentID == TournamentID then
-			Tournament[i] = nil
-		end
-	end
 
 
 	-- Delete every match in the tournament:
@@ -435,3 +445,5 @@ function FinishTournament(TournamentID, rankedStudents, graph)
 end
 
 
+
+function printList(list) for i,j in pairs(list) do print("ID: "..j.ID) print("Score: "..j.score) print() end end

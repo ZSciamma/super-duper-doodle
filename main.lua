@@ -16,7 +16,7 @@ require 'algorithms'
 
 local metaT = getmetatable("")
 
-metaT.__add = function(string1, string2)	--  + 
+metaT.__add = function(string1, string2)	--  +
 	return string1.."....."..string2
 end
 
@@ -78,7 +78,46 @@ function love.update(dt)					-- Callback function called every dt milliseconds
 	end
 end
 
-function love.quit()						-- Callback function called when the user quits (by pressing 'X' or otherwise)				
+function love.keypressed(key)
+	serv:keypressed(key)
+	if key == 'n' then
+		StudentAccount = {}
+		StudentMissedEvent = {}
+		TeacherAccount = {}
+		TeacherMissedEvent = {}
+		Class = {}
+		Tournament = {}
+		Scoreboard = {}
+		StudentMatch = {}
+		IncompleteMatch = {}
+	elseif key == 'r' then
+		StudentAccount = {
+			{ StudentID = 1, Forename = 'A', Surname = 'A', EmailAddress = 'A', Password = 'A', ClassID = 1, Ratings = "0.0.0.0.0.0.0.0.1.1.0.0.1.1.0.0.0.0.0.0.0.0.1.1" },
+			{ StudentID = 2, Forename = 'B', Surname = 'B', EmailAddress = 'B', Password = 'B', ClassID = 1, Ratings = "0.0.0.0.0.0.0.0.1.1.0.0.1.1.0.0.0.0.0.0.0.0.1.1" }
+		}
+		TeacherAccount = {
+			{ TeacherID = 1, Forename = 'T', Surname = 'T', EmailAddress = 'T', Password = 'T' }
+		}
+		Class = {
+			{ ClassID = 1, TeacherID = 1, ClassName = 'Coco', JoinCode = 1000000 }
+		}
+		--[[
+		Tournament = {
+			{ TournamentID = 1, ClassID = 1, RoundLength = 1, QsPerMatch = 5, LastRound = 77, WinnerID = nil }
+		}
+		Scoreboard = {
+			{ ScoreboardID = 1, StudentID = 1, TournamentID = 1 },
+			{ ScoreboardID = 2, StudentID = 2, TournamentID = 1 }
+		}
+		StudentMatch = {
+			{ FromScoreboardID = 1, ToScoreboardID = 2, QuestionSeed = 1231231, PointsWon = nil },
+			{ FromScoreboardID = 2, ToScoreboardID = 1, QuestionSeed = 1231231, PointsWon = nil },
+		}
+		--]]
+	end
+end
+
+function love.quit()						-- Callback function called when the user quits (by pressing 'X' or otherwise)
 	-- Save the tables upon quitting
 	love.filesystem.write("StudentAccountSave", table.serialize(StudentAccount))
 	love.filesystem.write("StudentMissedEventSave", table.serialize(StudentMissedEvent))

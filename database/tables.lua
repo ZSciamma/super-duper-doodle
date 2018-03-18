@@ -3,12 +3,12 @@
 
 
 if love.filesystem.exists("StudentAccountSave") then
-	StudentAccount = loadstring(love.filesystem.read("StudentAccountSave"))() 
+	StudentAccount = loadstring(love.filesystem.read("StudentAccountSave"))()
 	StudentMissedEvent = loadstring(love.filesystem.read("StudentMissedEventSave"))()
-	TeacherAccount = loadstring(love.filesystem.read("TeacherAccountSave"))() 
+	TeacherAccount = loadstring(love.filesystem.read("TeacherAccountSave"))()
 	TeacherMissedEvent = loadstring(love.filesystem.read("TeacherMissedEventSave"))()
-	Class = loadstring(love.filesystem.read("ClassSave"))() 
-	Tournament = loadstring(love.filesystem.read("TournamentSave"))() 
+	Class = loadstring(love.filesystem.read("ClassSave"))()
+	Tournament = loadstring(love.filesystem.read("TournamentSave"))()
 	Scoreboard = loadstring(love.filesystem.read("ScoreboardSave"))()
 	StudentMatch = loadstring(love.filesystem.read("StudentMatchSave"))()
 	IncompleteMatch = loadstring(love.filesystem.read("IncompleteMatchSave"))()
@@ -30,16 +30,16 @@ function printTable(table, NOT) 	-- Useful debugging function for printing a sel
 	NOT = NOT or {} 				-- If provided, not is in the format: { ["Rating"] = 0, ["EmailAddress"] = 0, ... } (this example will print every field except Rating and EmailAddress)
 	local recordNumber = 0
 	print()
-	for i,j in ipairs(table) do 
+	for i,j in ipairs(table) do
 		recordNumber = recordNumber + 1
 		print("Record Number "..recordNumber..":")
-		for k,l in pairs(j) do 
+		for k,l in pairs(j) do
 			if not NOT[k] then
 				print("\t"..k..":"..(string.rep(" ", 15 - string.len(k)))..(l or "nil"))
 			end
-		end 
-		print() 
-	end 	
+		end
+		print()
+	end
 end
 
 
@@ -117,7 +117,7 @@ function addTournament(ClassID, RoundTime, QsPerMatch)
 		RoundLength = RoundTime,
 		QsPerMatch = QsPerMatch,
 		LastRound = os.date('*t').yday + 1,				-- The day on which the last round was started. Starts on the day after the tournament is created (the first round is slightly longer to accomodate later creation times (eg. 10pm))
-		WinnerID = nil
+		FinalRanking = nil
 	}
 	table.insert(Tournament, newTournament)
 	return newTournament.TournamentID
@@ -131,7 +131,7 @@ function addScoreboard(TournamentID, StudentID)
 		TournamentID = TournamentID,
 	}
 	table.insert(Scoreboard, newScoreboard)
-	return 
+	return
 end
 
 function addStudentMatch(FromScoreboardID, ToScoreboardID, QuestionSeed)
@@ -197,14 +197,14 @@ end
 
 function ClassTournamentExists(ClassID) 	-- Check whether a class is currently in a tournament by iterating through the Tournament table and checking the ClassID of every tournament.
 	for i,j in ipairs(Tournament) do
-		if j.ClassID == ClassID then 
-			return true 
+		if j.ClassID == ClassID and j.FinalRanking then
+			return true
 		end
 	end
 	return false
 end
 
-function EmailTaken(EmailAddress)			-- Check that email teacher or student is using to sign up isn't already in use		
+function EmailTaken(EmailAddress)			-- Check that email teacher or student is using to sign up isn't already in use
 	for i,teacher in ipairs(TeacherAccount) do
 		if teacher.EmailAddress == EmailAddress then return true end
 	end
@@ -216,7 +216,7 @@ end
 
 function ConfirmClassCode(JoinCode)					-- Validate the class code provided by the student to let them join the class, adding them to the class
 	for i,class in ipairs(Class) do
-		if class.JoinCode == JoinCode then 
+		if class.JoinCode == JoinCode then
 			return { className = class.ClassName, classID = class.ClassID, teacherID = class.TeacherID }
 		end
 	end
@@ -262,7 +262,7 @@ function SendTeacherEvents(TeacherID)				-- Return the events missed by the teac
 end
 
 
-function FetchTeacherInfo(TeacherID)				-- Returns serialized Class, StudentAccount, and Tournament tables, but shortened to include only the classes owned by a specific teacher. 
+function FetchTeacherInfo(TeacherID)				-- Returns serialized Class, StudentAccount, and Tournament tables, but shortened to include only the classes owned by a specific teacher.
 	-- This is essentially all the information that needs to be stored by the teacher program while they are online (to avoid making constant requests from the server for baskc information)
 	-- The teacher database follows a reduced model of the main database.
 	local classes = {}								-- Consider using aggregate later
@@ -271,7 +271,7 @@ function FetchTeacherInfo(TeacherID)				-- Returns serialized Class, StudentAcco
 	local tournaments = {}
 	local tournamentNum = 0
 
-	for i,class in ipairs(Class) do  				
+	for i,class in ipairs(Class) do
 		if class.TeacherID == TeacherID then
 			table.insert(classes, { ClassName = class.ClassName, JoinCode = class.JoinCode })
 			classIDs[class.ClassID] = class.ClassName 		-- Store the class if it belongs to the teacher
@@ -288,7 +288,7 @@ function FetchTeacherInfo(TeacherID)				-- Returns serialized Class, StudentAcco
 	for i,t in ipairs(Tournament) do
 		local className = classIDs[t.ClassID]
 		if className then
-			table.insert(tournaments, { TournamentID = tournamentNum, ClassName = className, RoundLength = t.RoundLength, QsPerMatch = t.QsPerMatch, LastRound = t.LastRound, WinnerID = t.WinnerID })
+			table.insert(tournaments, { TournamentID = tournamentNum, ClassName = className, RoundLength = t.RoundLength, QsPerMatch = t.QsPerMatch, LastRound = t.LastRound, FinalRanking = t.FinalRanking })
 			tournamentNum = tournamentNum + 1
 		end
 	end
@@ -332,7 +332,7 @@ end
 local function classCodeTaken(JoinCode)			-- Check if a specific joinCode has already been assigned
 	if JoinCode == "" then return true end		-- JoinCode not yet set, so invalid
 	for i,class in ipairs(Class) do
-		if Class.JoinCode == JoinCode then 
+		if Class.JoinCode == JoinCode then
 			return true
 		end
 	end
@@ -375,7 +375,7 @@ function AddStudentClass(StudentID, ClassID) 		-- Add a student to a class (only
 end
 
 function ClearStudentEvents(StudentID)				-- Clear the list of missed events once they have been dealt with
-	for i,event in ipairs(StudentMissedEvent) do 
+	for i,event in ipairs(StudentMissedEvent) do
 		if event.StudentID == StudentID then
 			table.remove(StudentMissedEvent, i)
 		end
@@ -394,7 +394,7 @@ function GenerateClassJoinCode()			-- Generates a random code to be associated w
 	local code = ""
 	while classCodeTaken(code) do
 		for i = 1, 7 do
-			code = code..tostring(love.math.random(0, 9))
+			code = code..tostring(love.math.random(1, 9))
 		end
 	end
 	return code
@@ -403,4 +403,3 @@ end
 function UpdateStudentRatings(StudentID, NewStudentRatings) 	-- Replace the current student ratings with the new ones (sent by the student program)
 	StudentAccount[StudentID].Ratings = NewStudentRatings
 end
-

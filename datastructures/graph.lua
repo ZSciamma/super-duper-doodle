@@ -1,4 +1,4 @@
--- This data structure is an adjacency list representing a graph. A list stores the name of each node (integers in this case). Each node 
+-- This data structure is an adjacency list representing a graph. A list stores the name of each node (integers in this case). Each node
 -- Each node has a linked list containing the nodes to which it is is joined.
 
 Graph = Object:extend()
@@ -35,6 +35,7 @@ function Graph:EdgesPerNode()								-- Returns the number of edges per node. Fa
 			return false
 		end
 	end
+	if length == -1 then length = 0 end
 	return length
 end
 
@@ -46,7 +47,7 @@ function Graph:NewEdge(node, connectedNode, value)
 	self.nodes[node]:NewNode({ connectedNode, value })		-- Add a value to the linked list representing the node. This is an edge.
 end
 
-function Graph:TotalWeight(node)							-- Calculates the sum of the weights of the edges leaving a node 
+function Graph:TotalWeight(node)							-- Calculates the sum of the weights of the edges leaving a node
 	if not self.nodes[node] then return false end
 	return self.nodes[node]:ScoreTotal()
 end
@@ -64,7 +65,7 @@ function Graph:TotalNeighbourWeight(node)					-- Calculates sum of the TotalWeig
 		neighbourWeight = neighbourWeight + currentWeight	-- Adds edge sum of this node to the total
 
 		if currentWeight > max then max = currentWeight end
-		if currentWeight < min then min = currentWeight end  					 
+		if currentWeight < min then min = currentWeight end
 	end
 	if rounds < 3 then max = 0 min = 0 end 					-- Use Median-Buchholtz only if at least three rounds have been completed
 
