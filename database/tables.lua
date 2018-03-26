@@ -43,7 +43,6 @@ function printTable(table, NOT) 	-- Useful debugging function for printing a sel
 end
 
 
-
 --***********************************************************************************-
 -------------------- CREATE: functions for creating new records
 
@@ -57,6 +56,7 @@ function addStudentAccount(Forename, Surname, EmailAddress, Password, ClassID)
 		Password = Password,
 		ClassID = ClassID,
 		Ratings = "0.0.0.0.0.0.0.0.1.1.0.0.1.1.0.0.0.0.0.0.0.0.1.1", 			-- How advanced the student is at the game. Atomic in this case since it is serialized, so as far as the database knows, it is undivisible.
+		Level = 1,
 	}
 	table.insert(StudentAccount, newStudent)
 	return newStudent.StudentID
@@ -281,7 +281,7 @@ function FetchTeacherInfo(TeacherID)				-- Returns serialized Class, StudentAcco
 	for i,student in ipairs(StudentAccount) do
 		local className = classIDs[student.ClassID]
 		if className then
-			table.insert(students, { StudentID = student.StudentID, Forename = student.Forename, Surname = student.Surname, Ratings = student.Ratings, ClassName = className })
+			table.insert(students, { StudentID = student.StudentID, Forename = student.Forename, Surname = student.Surname, Ratings = student.Ratings, Level = student.Level, ClassName = className })
 		end
 	end
 
@@ -289,6 +289,8 @@ function FetchTeacherInfo(TeacherID)				-- Returns serialized Class, StudentAcco
 		local className = classIDs[t.ClassID]
 		if className then
 			table.insert(tournaments, { TournamentID = tournamentNum, ClassName = className, RoundLength = t.RoundLength, QsPerMatch = t.QsPerMatch, LastRound = t.LastRound, FinalRanking = t.FinalRanking })
+			print("Final Ranking: ")
+			print(t.FinalRanking)
 			tournamentNum = tournamentNum + 1
 		end
 	end
@@ -329,6 +331,16 @@ function FindStudentsInClass(classID)		-- Returns the IDs of every student in a 
 	return studentIDs
 end
 
+function FindClassSize(ClassID)		-- Returns the number of students in a class
+	local studentNo = 0
+	for i,student in ipairs(StudentAccount) do
+		if student.ClassID == ClassID then
+			studentNo = studentNo + 1
+		end
+	end
+	return studentNo
+end
+
 local function classCodeTaken(JoinCode)			-- Check if a specific joinCode has already been assigned
 	if JoinCode == "" then return true end		-- JoinCode not yet set, so invalid
 	for i,class in ipairs(Class) do
@@ -359,6 +371,15 @@ function FindTournamentRoundStart(TournamentID)			-- Returns the time allowed fo
 		end
 	end
 	return false
+end
+
+function FindStudentName(StudentID)			-- Return the name and surname from the StudentID
+	local student = StudentAccount[StudentID]
+	if student then
+		return student.Forename..student.Surname
+	else
+		return false
+	end
 end
 
 --***********************************************************************************-
@@ -400,6 +421,7 @@ function GenerateClassJoinCode()			-- Generates a random code to be associated w
 	return code
 end
 
-function UpdateStudentRatings(StudentID, NewStudentRatings) 	-- Replace the current student ratings with the new ones (sent by the student program)
+function UpdateStudentRatings(StudentID, NewStudentRatings, NewLevel) 	-- Replace the current student ratings with the new ones (sent by the student program)
 	StudentAccount[StudentID].Ratings = NewStudentRatings
+	StudentAccount[StudentID].Level = NewLevel
 end

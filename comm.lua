@@ -160,8 +160,11 @@ local function MakeNewTournament(peer, classname, roundTime, qsPerMatch)  -- Res
     local peerInfo = identifyPeer(peer)
     local teacherID = peerInfo.ID
     local classID = FindClassID(teacherID, classname)
+    local classSize = FindClassSize(classID)
     if ClassTournamentExists(classID) then
         SendInfo(peer, "NewTournamentReject" + classname + "This class is already in a tournament. Please wait for it to finish.", false, teacherID)
+    elseif classSize < 3 then
+        SendInfo(peer, "MewTournamentReject" + classname + "This class does not have enough students for a tournament!", false, teacherID)
     else
         DeletePreviousTournament(classID)
         local tournamentID = addTournament(classID, roundTime, qsPerMatch)
@@ -268,11 +271,11 @@ local function LoginTeacher(peer, email, password)        -- Response to a teach
     end
 end
 
-local function LogoutStudent(peer, newRating)     -- Response to student request to log out.
+local function LogoutStudent(peer, newRating, newLevel)     -- Response to student request to log out.
     local student = identifyPeer(peer)
     if student then
         peer:send("LogoutSuccess")          -- Sends message directly to student and not through the SendInfo function, since the student will be removed from the client list.
-        UpdateStudentRatings(student.ID, newRating)
+        UpdateStudentRatings(student.ID, newRating, newLevel)
         removeClient(peer)                  -- Remove the student from the list of users logged in.
     end
 end
@@ -296,7 +299,7 @@ local function respondToMessage(event)        -- Defines its own protocol for co
         ["TeacherLogin"] = function(peer, email, password) LoginTeacher(peer, email, password) end,
         ["NewClass"] = function(peer, classname) MakeNewClass(peer, classname) end,
         ["StudentClassJoin"] = function(peer, classJoinCode) AddStudentToClass(peer, classJoinCode) end,
-        ["StudentLogout"] = function(peer, rating) LogoutStudent(peer, rating) end,
+        ["StudentLogout"] = function(peer, rating, level) LogoutStudent(peer, rating, level) end,
         ["TeacherLogout"] = function(peer) LogoutTeacher(peer) end,
         ["NewTournament"] = function(peer, classname, roundTime, qsPerMatch) MakeNewTournament(peer, classname, roundTime, qsPerMatch) end,
         ["StudentMatchFinished"] = function(peer, score) StudentMatchFinished(peer, score) end,
@@ -380,11 +383,37 @@ function NotifyStudentsOfNewMatch(TournamentID, nextPairings)
             if not student2 then SendInfo(studentPeer1, "ByeReceived", true, student1.StudentID) end
         else
             print(startDay)
+            print(student1.StudentID)
             print(student1.Ratings)
             print(student2.Ratings)
             print(match.QuestionSeed)
             SendInfo(studentPeer1, "NewMatch" + startDay + student1.Ratings + student2.Ratings + match.QuestionSeed, true, student1.StudentID)
         end
+    end
+end
+
+function NotifyStudentsOfMatchResult(Scoreboard1, Scoreboard2, Score1, Score2)      -- Sends the results of a tournament round to each student (except the student with a bye), stating whether they won or lost their match
+    local student1 = ReturnScoreboardStudent(Scoreboard1)
+    local student2 = ReturnScoreboardStudent(Scoreboard2)
+    local result
+    if Score1 > Score2 then
+        result = 3
+    else
+        result = 0
+    end
+    if student1 and student2 then
+        local studentPeer1 = findStudentPeer(student1.StudentID)
+        local studentPeer2 = findStudentPeer(student2.StudentID)
+        SendInfo(studentPeer1, "MatchResults" + student2.Forename..student2.Surname + result, true, student1.StudentID)
+        SendInfo(studentPeer2, "MatchResults" + student1.Forename..student1.Surname + (3 - result), true, student2.StudentID)
+    end
+end
+
+function NotifyStudentsOfTournamentEnd(TournamentID, rankedStudents)        -- Notifies the students at the end of a tournament. Gives each student the names of the runners up and their own rank at the end of the tournament
+    local winners = { FindStudentName(rankedStudents[1].ID), FindStudentName(rankedStudents[2].ID), FindStudentName(rankedStudents[3].ID) }
+    for i,s in ipairs(rankedStudents) do
+        local studentPeer = findStudentPeer(s.ID)
+        SendInfo(studentPeer, "TournamentResults" + table.serialize(winners) + i, true, s.ID)
     end
 end
 

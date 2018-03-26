@@ -20,6 +20,7 @@ metaT.__add = function(string1, string2)	--  +
 	return string1.."....."..string2
 end
 
+--[[
 metaT.__mul = function(string1, toAdd)		--  * Adds t after the (i-1)th letter; toAdd = { letter, index }
 	local length = string.len(string1)
 	return string.sub(string1, 1, toAdd[2] - 1)..toAdd[1]..string.sub(string1, toAdd[2])
@@ -29,6 +30,7 @@ metaT.__div = function(string1, i)			-- / Removes the ith letter
 	local length = string.len(string1)
 	return string.sub(string1, 1, i - 1)..string.sub(string1, i + 1)
 end
+--]]
 
 local serverTime = 0.1
 local serverTimer = serverTime

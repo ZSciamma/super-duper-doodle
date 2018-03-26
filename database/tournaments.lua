@@ -30,12 +30,12 @@ function CheckRoundFinished(TournamentID, dateTime)				-- Checks whether the cur
 
 	if not t.FinalRanking then 		-- Tournament needs updating if it is incomplete but the previous round has timed out
 		local nextRoundComplete = NextRound(t.TournamentID)
-		if not nextRoundComplete and dateTime.yday >= t.LastRound + t.RoundLength then 		-- Create next round if previous round has timed out
+		if not nextRoundComplete and (dateTime.yday >= t.LastRound + t.RoundLength or dateTime.yday < t.LastRound - 1) then 		-- Create next round if previous round has timed out
 			--Complete the current match (complete any unfinished match)
 			nextRoundComplete = NextRound(t.TournamentID)
 		end
 
-		if nextRoundComplete then t.LastRound = dateTime.yday end 	-- Update last round start date if a new round has now started
+		if nextRoundComplete then t.LastRound = dateTime.yday end 	-- Update last round start date if a new round has now started. The round starts on the next day.
 	end
 end
 
@@ -266,6 +266,7 @@ end
 
 
 function CompleteMatch(FromScoreboardID, ToScoreboardID, Score1, Score2) 	-- Once both students have finished their match (against each other), add this as a complete match to the StudentMatch table
+	NotifyStudentsOfMatchResult(FromScoreboardID, ToScoreboardID, Score1, Score2)
 	local player1Points = 0
 	if Score1 > Score2 then
 		player1Points = 3
@@ -407,7 +408,7 @@ function ReturnTournamentClass(TournamentID)	-- Returns the record for the class
 	return false
 end
 
-function ConvertScoreboardToStudent(scoreboardRanks)				-- Takes a table of tables of the form { ID = _, score = _ } and converts every ScoreboardID to the StudentID of the appropriate student
+function ConvertScoreboardToStudent(scoreboardRanks)			-- Takes a table of tables of the form { ID = _, score = _ } and converts every ScoreboardID to the StudentID of the appropriate student
 	local studentRanks = {}
 	for i,j in ipairs(scoreboardRanks) do
 		local student = ReturnScoreboardStudent(j.ID)
@@ -421,13 +422,12 @@ function FinishTournament(TournamentID, rankedStudents, graph)	-- Called at the 
 	local class = ReturnTournamentClass(TournamentID)
 	rankedStudents = ConvertScoreboardToStudent(rankedStudents)
 	local ranking = table.serialize(rankedStudents)
+	UpdateTournamentRanking(TournamentID, ranking)
 	print(ranking)
 	SendTeacherTournamentEnd(class.TeacherID, class.ClassName, ranking)
 
 	-- Send winner and ranking to every student:
-
-
-
+	NotifyStudentsOfTournamentEnd(TournamentID, rankedStudents)
 
 	-- Delete every match in the tournament:
 	for i,m in ipairs(StudentMatch) do
@@ -444,6 +444,13 @@ function FinishTournament(TournamentID, rankedStudents, graph)	-- Called at the 
 	end
 end
 
+function UpdateTournamentRanking(TournamentID, ranking)
+	for i,t in ipairs(Tournament) do
+		if t.TournamentID == TournamentID then
+			t.FinalRankingc = ranking
+		end
+	end
+end
 
 
 function printList(list) for i,j in pairs(list) do print("ID: "..j.ID) print("Score: "..j.score) print() end end
