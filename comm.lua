@@ -161,7 +161,7 @@ local function MakeNewTournament(peer, classname, roundTime, qsPerMatch)  -- Res
     local teacherID = peerInfo.ID
     local classID = FindClassID(teacherID, classname)
     local classSize = FindClassSize(classID)
-    if ClassTournamentExists(classID) then
+    if TournamentUnfinished(classID) then
         SendInfo(peer, "NewTournamentReject" + classname + "This class is already in a tournament. Please wait for it to finish.", false, teacherID)
     elseif classSize < 3 then
         SendInfo(peer, "MewTournamentReject" + classname + "This class does not have enough students for a tournament!", false, teacherID)
@@ -193,25 +193,6 @@ local function StudentMatchFinished(peer, score)              -- Response to a s
         addIncompleteMatch(currentMatch.FromScoreboardID, currentMatch.ToScoreboardID, score)
     end
 end
-
---[[
-local function SendNextGame(peer)                 -- Response to student asking for the next match. Sends information about the next match to the student (or appropriate response if none is available)
-    local peerInfo = identifyPeer(peer)
-    local studentID = peerInfo.ID
-    local classID = FindStudentClass(studentID)
-    if not ClassTournamentExists(classID) then          -- Conditions to check for next match
-        SendInfo(peer, "NoCurrentTournament" + classID, true, studentID)
-        return
-    end
-    local gameID = FindTournamentGame(studentID)     -- Send student the info for both players. The student program calculates the questions, easing the central server's workload.
-    if gameID then
-        local ratings = FindGameRatings(gameID)
-        SendInfo(peer, "NextGame" + ratings[1] + ratings[2], true, studentID)
-    else
-        SendInfo(peer, "NoNewGames", true, studentID)
-    end
-end
---]]
 
 local function SendStudentMissedEvents(peer, ID)  -- Called when a student logs in. Checks for any messages the student missed while offline, sends them, and deletes them from the StudentMissedEvent table.
     local missedEvents = {}
@@ -248,6 +229,8 @@ local function LoginStudent(peer, email, password)                            --
     else
         peer:send("LoginFail" + "Please verify all fields are correct.")
     end
+    print("Missed Events:")
+    printTable(StudentMissedEvent)
 end
 
 local function SendTeacherMissedEvents(peer, ID)  -- Called when a teacher logs in. Checks for any messages the teacher missed while offline, sends them, and deletes them from the TeacherMissedEvent table.
@@ -387,9 +370,11 @@ function NotifyStudentsOfNewMatch(TournamentID, nextPairings)
             print(student1.Ratings)
             print(student2.Ratings)
             print(match.QuestionSeed)
-            SendInfo(studentPeer1, "NewMatch" + startDay + student1.Ratings + student2.Ratings + match.QuestionSeed, true, student1.StudentID)
+            SendInfo(studentPeer1, "NewMatch" + startDay + student1.Ratings + student2.Ratings + match.QuestionSeed + student2.Forename.." "..student2.Surname, true, student1.StudentID)
         end
     end
+    print("Student Missed Events:")
+    printTable(StudentMissedEvent)
 end
 
 function NotifyStudentsOfMatchResult(Scoreboard1, Scoreboard2, Score1, Score2)      -- Sends the results of a tournament round to each student (except the student with a bye), stating whether they won or lost their match

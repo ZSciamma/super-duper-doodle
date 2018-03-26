@@ -39,11 +39,11 @@ function Graph:EdgesPerNode()								-- Returns the number of edges per node. Fa
 	return length
 end
 
-function Graph:NewNode(newNode)
+function Graph:NewNode(newNode)								-- Create a new node with the name given
 	self.nodes[newNode] = LinkedList()					 	-- Set the index given as an argument equal to a new linked list.
 end
 
-function Graph:NewEdge(node, connectedNode, value)
+function Graph:NewEdge(node, connectedNode, value)			-- Creates a new directed, weighted edge between two nodes
 	self.nodes[node]:NewNode({ connectedNode, value })		-- Add a value to the linked list representing the node. This is an edge.
 end
 
@@ -82,7 +82,7 @@ end
 
 
 -- DEBUG:
-function Graph:Print()
+function Graph:Print()										-- Prints every node and every edge leaving it. Used only for debugging.
 	for i,j in pairs(self.nodes) do
 		print(i.." is connected to nodes: ")
 		j:Print()

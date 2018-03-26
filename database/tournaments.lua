@@ -9,6 +9,15 @@ function CheckTournamentRoundsFinished(dateTime)			-- Checks every running tourn
 	end
 end
 
+function TournamentUnfinished(ClassID)
+	for i,t in ipairs(Tournament) do
+		if t.ClassID == ClassID then
+			return not t.FinalRanking
+		end
+	end
+	return false
+end
+
 function DeletePreviousTournament(ClassID)					-- When creating a new tournament, the previous tounament for that class is deleted
 	for i,t in ipairs(Tournament) do
 		if t.ClassID == ClassID then
@@ -82,6 +91,7 @@ function NextRound(TournamentID) 							-- Overall, creates the next set of matc
 		nextPairing = FirstRoundMatches(rankedStudents)
 	elseif rounds == finalRound then
 		print("Tournament Finished")
+		print(table.serialize(rankedStudents))
 		FinishTournament(TournamentID, rankedStudents, graph)
 	else
 		print("Tournament Ongoing")
@@ -166,6 +176,8 @@ function TournamentRanking(graph)					-- Finds a pairing for every student for t
 	-- Get a ranking for the students:
 	rankedStudents = GraphToList(graph)
 	rankedStudents = mergeSort(rankedStudents, graph)		-- Sorts the students in order of decreasing score (resolving ties)
+	print("Merge Sorted Ranks:")
+	print(rankedStudents)
 
 	return rankedStudents
 end
@@ -283,7 +295,7 @@ function CompleteMatch(FromScoreboardID, ToScoreboardID, Score1, Score2) 	-- Onc
 	-- Remove any incomplete matches:
 	for i,j in ipairs(IncompleteMatch) do
 		if (j.FromScoreboardID == FromScoreboardID and j.ToScoreboardID == j.ToScoreboardID) or (j.FromScoreboardID == ToScoreboardID and j.ToScoreboardID == FromScoreboardID) then
-			table.remove(IncompleteMatch, i)
+			IncompleteMatch[i] = nil
 		end
 	end
 end
@@ -420,6 +432,8 @@ end
 function FinishTournament(TournamentID, rankedStudents, graph)	-- Called at the end of a tournament. Deletes records involved and send final tournament information to teacher and students
 	-- Send student ranking to teacher:
 	local class = ReturnTournamentClass(TournamentID)
+	print("Ranked Students:")
+	print(table.serialize(rankedStudents))
 	rankedStudents = ConvertScoreboardToStudent(rankedStudents)
 	local ranking = table.serialize(rankedStudents)
 	UpdateTournamentRanking(TournamentID, ranking)
@@ -428,7 +442,7 @@ function FinishTournament(TournamentID, rankedStudents, graph)	-- Called at the 
 
 	-- Send winner and ranking to every student:
 	NotifyStudentsOfTournamentEnd(TournamentID, rankedStudents)
-
+	graph:Print()
 	-- Delete every match in the tournament:
 	for i,m in ipairs(StudentMatch) do
 		if graph:NodeExists(m.FromScoreboardID) then		-- Check if scoreboard is part of this tournament
@@ -447,7 +461,7 @@ end
 function UpdateTournamentRanking(TournamentID, ranking)
 	for i,t in ipairs(Tournament) do
 		if t.TournamentID == TournamentID then
-			t.FinalRankingc = ranking
+			t.FinalRanking = ranking
 		end
 	end
 end

@@ -98,7 +98,7 @@ function addTeacherMissedEvent(TeacherID, Message)
 end
 
 function addClass(ClassName, TeacherID, JoinCode)
-	local ClassNo = #Class
+	local ClassNo = FindAvailableID(Class)
 	local newClass = {
 		ClassID = ClassNo + 1,
 		TeacherID = TeacherID,
@@ -110,7 +110,7 @@ function addClass(ClassName, TeacherID, JoinCode)
 end
 
 function addTournament(ClassID, RoundTime, QsPerMatch)
-	local TournamentNo = #Tournament
+	local TournamentNo = FindAvailableID(Tournament)
 	local newTournament = {
 		TournamentID = TournamentNo + 1,
 		ClassID = ClassID,
@@ -124,7 +124,7 @@ function addTournament(ClassID, RoundTime, QsPerMatch)
 end
 
 function addScoreboard(TournamentID, StudentID)
-	local ScoreboardNo = #Scoreboard
+	local ScoreboardNo = FindAvailableID(Scoreboard)
 	local newScoreboard = {
 		ScoreboardID = ScoreboardNo + 1,
 		StudentID = StudentID,
@@ -157,6 +157,15 @@ end
 ------------------------------
 -- Fix these:
 
+function FindAvailableID(table)
+	local id = 1
+	for i,j in ipairs(table) do
+		if i == id then id = id + 1 end
+	end
+	return id
+end
+
+--[[
 function FindAvailableTournamentGameID()
 	local nextID = 1
 	for i,event in ipairs(TournamentMatch) do
@@ -182,6 +191,7 @@ function FindAvailableID(eventTable)
 	end
 	return nextID
 end
+--]]
 
 
 
@@ -195,6 +205,7 @@ function TeacherClassExists(ClassName, TeacherID) 	-- Checks whether a teacher a
 	return false
 end
 
+--[[
 function ClassTournamentExists(ClassID) 	-- Check whether a class is currently in a tournament by iterating through the Tournament table and checking the ClassID of every tournament.
 	for i,j in ipairs(Tournament) do
 		if j.ClassID == ClassID and j.FinalRanking then
@@ -203,6 +214,7 @@ function ClassTournamentExists(ClassID) 	-- Check whether a class is currently i
 	end
 	return false
 end
+--]]
 
 function EmailTaken(EmailAddress)			-- Check that email teacher or student is using to sign up isn't already in use
 	for i,teacher in ipairs(TeacherAccount) do
@@ -398,7 +410,7 @@ end
 function ClearStudentEvents(StudentID)				-- Clear the list of missed events once they have been dealt with
 	for i,event in ipairs(StudentMissedEvent) do
 		if event.StudentID == StudentID then
-			table.remove(StudentMissedEvent, i)
+			StudentMissedEvent[i] = nil
 		end
 	end
 end
@@ -406,7 +418,7 @@ end
 function ClearTeacherEvents(TeacherID)				-- Clear the list of missed events once they have been dealt with
 	for i,event in ipairs(TeacherMissedEvent) do
 		if event.TeacherID == TeacherID then
-			table.remove(TeacherMissedEvent, i)
+			TeacherMissedEvent[i] = nil
 		end
 	end
 end
