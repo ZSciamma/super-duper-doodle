@@ -209,20 +209,23 @@ local function RemindStudentOfMatch(peer, StudentID)        -- When a student lo
     local match = FindCurrentMatch(scoreboardID)
     local tournament = ReturnScoreboardTournament(scoreboardID)
 
-    SendInfo(peer, "CurrentTournament" + tournament.RoundLength + tournament.QsPerMatch)
+    peer:send("CurrentTournament" + tournament.RoundLength + tournament.QsPerMatch)
+    --SendInfo(peer, "CurrentTournament" + tournament.RoundLength + tournament.QsPerMatch, true, S)
     if match then                          -- If no match is available
         local student1 = ReturnScoreboardStudent(match.FromScoreboardID)
         local student2 = ReturnScoreboardStudent(match.ToScoreboardID)
-        SendInfo(peer, "CurrentMatch" + tournament.RoundLength + tournament.QsPerMatch + tournament.LastRound + student1.Ratings + student2.Ratings + match.QuestionSeed, true, StudentID)
+        peer:send("CurrentMatch" + tournament.RoundLength + tournament.QsPerMatch + tournament.LastRound + student1.Ratings + student2.Ratings + match.QuestionSeed)
+        --SendInfo(peer, "CurrentMatch" + tournament.RoundLength + tournament.QsPerMatch + tournament.LastRound + student1.Ratings + student2.Ratings + match.QuestionSeed, true, StudentID)
     end
 end
 
 local function LoginStudent(peer, email, password)                            -- Response to a student's request to log in. Validates their information and, if correct, logs them in, adding them to the list of online clients and sending back information the student program may need (eg. classname if any)
     local StudentID = ValidateStudentLogin(email, password)
     if StudentID then
+        local student = ReturnStudent(StudentID)
         local className = FindStudentClassName(StudentID)
         local ratings = FindStudentRatings(StudentID)
-        peer:send("LoginSuccess" + (className or 0) + ratings)          -- Send all info needed by the student: classname, ratings. This does not pass through the SendInfo function since the student is not yet in the list of clients online (they are considered offline).
+        peer:send("LoginSuccess" + student.Forename.." "..student.Surname + (className or 0) + ratings + student.Level + student.Statistics)          -- Send all info needed by the student: classname, ratings. This does not pass through the SendInfo function since the student is not yet in the list of clients online (they are considered offline).
         addClient(peer, true, StudentID)
         SendStudentMissedEvents(peer, StudentID)
         if IsStudentInMatch(StudentID) then RemindStudentOfMatch(peer, StudentID) end
@@ -254,11 +257,12 @@ local function LoginTeacher(peer, email, password)        -- Response to a teach
     end
 end
 
-local function LogoutStudent(peer, newRating, newLevel)     -- Response to student request to log out.
+local function LogoutStudent(peer, newRating, newLevel, statistics)     -- Response to student request to log out.
     local student = identifyPeer(peer)
     if student then
         peer:send("LogoutSuccess")          -- Sends message directly to student and not through the SendInfo function, since the student will be removed from the client list.
         UpdateStudentRatings(student.ID, newRating, newLevel)
+        UpdateStudentStatistics(student.ID, statistics)
         removeClient(peer)                  -- Remove the student from the list of users logged in.
     end
 end
@@ -282,7 +286,7 @@ local function respondToMessage(event)        -- Defines its own protocol for co
         ["TeacherLogin"] = function(peer, email, password) LoginTeacher(peer, email, password) end,
         ["NewClass"] = function(peer, classname) MakeNewClass(peer, classname) end,
         ["StudentClassJoin"] = function(peer, classJoinCode) AddStudentToClass(peer, classJoinCode) end,
-        ["StudentLogout"] = function(peer, rating, level) LogoutStudent(peer, rating, level) end,
+        ["StudentLogout"] = function(peer, rating, level, statistics) LogoutStudent(peer, rating, level, statistics) end,
         ["TeacherLogout"] = function(peer) LogoutTeacher(peer) end,
         ["NewTournament"] = function(peer, classname, roundTime, qsPerMatch) MakeNewTournament(peer, classname, roundTime, qsPerMatch) end,
         ["StudentMatchFinished"] = function(peer, score) StudentMatchFinished(peer, score) end,

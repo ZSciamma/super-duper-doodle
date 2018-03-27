@@ -57,6 +57,7 @@ function addStudentAccount(Forename, Surname, EmailAddress, Password, ClassID)
 		ClassID = ClassID,
 		Ratings = "0.0.0.0.0.0.0.0.1.1.0.0.1.1.0.0.0.0.0.0.0.0.1.1", 			-- How advanced the student is at the game. Atomic in this case since it is serialized, so as far as the database knows, it is undivisible.
 		Level = 1,
+		Statistics = table.serialize({ 0, 0 })					-- Format: { Total answers, Number correct } (but seralized)
 	}
 	table.insert(StudentAccount, newStudent)
 	return newStudent.StudentID
@@ -394,6 +395,13 @@ function FindStudentName(StudentID)			-- Return the name and surname from the St
 	end
 end
 
+function ReturnStudent(StudentID)
+	for i,student in ipairs(StudentAccount) do
+		if student.StudentID == StudentID then return student end
+	end
+	return false
+end
+
 --***********************************************************************************-
 -------------------- UPDATE: Functions for adding to information in tables
 
@@ -436,4 +444,8 @@ end
 function UpdateStudentRatings(StudentID, NewStudentRatings, NewLevel) 	-- Replace the current student ratings with the new ones (sent by the student program)
 	StudentAccount[StudentID].Ratings = NewStudentRatings
 	StudentAccount[StudentID].Level = NewLevel
+end
+
+function UpdateStudentStatistics(StudentID, Statistics)
+	StudentAccount[StudentID].Statistics = Statistics
 end
