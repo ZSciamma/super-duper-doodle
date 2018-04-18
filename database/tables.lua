@@ -52,7 +52,7 @@ function addStudentAccount(Forename, Surname, EmailAddress, Password, ClassID)
 		StudentID = StudentNo + 1,
 		Forename = Forename,
 		Surname = Surname,
-		EmailAddress = EmailAddress,
+		EmailAddress = string.lower(EmailAddress),
 		Password = Password,
 		ClassID = ClassID,
 		Ratings = "0.0.0.0.0.0.0.0.1.1.0.0.1.1.0.0.0.0.0.0.0.0.1.1", 			-- How advanced the student is at the game. Atomic in this case since it is serialized, so as far as the database knows, it is undivisible.
@@ -80,7 +80,7 @@ function addTeacherAccount(Forename, Surname, EmailAddress, Password)
 		TeacherID = TeacherNo + 1,
 		Forename = Forename,
 		Surname = Surname,
-		EmailAddress = EmailAddress,
+		EmailAddress = string.lower(EmailAddress),
 		Password = Password,
 	}
 	table.insert(TeacherAccount, newTeacher)
@@ -219,10 +219,10 @@ end
 
 function EmailTaken(EmailAddress)			-- Check that email teacher or student is using to sign up isn't already in use
 	for i,teacher in ipairs(TeacherAccount) do
-		if teacher.EmailAddress == EmailAddress then return true end
+		if teacher.EmailAddress == string.lower(EmailAddress) then return true end
 	end
 	for i,student in ipairs(StudentAccount) do
-		if student.EmailAddress == EmailAddress then return true end
+		if student.EmailAddress == string.lower(EmailAddress) then return true end
 	end
 	return false
 end
@@ -238,7 +238,7 @@ end
 
 function ValidateStudentLogin(EmailAddress, Password) 	-- Checks whether a student's login information is valid, returning their StudentID if so.
 	for i,student in ipairs(StudentAccount) do
-		if EmailAddress == student.EmailAddress and Password == student.Password then
+		if string.lower(EmailAddress) == student.EmailAddress and Password == student.Password then
 			return student.StudentID
 		end
 	end
@@ -257,7 +257,7 @@ end
 
 function ValidateTeacherLogin(EmailAddress, Password) -- Checks whether a teacher's login information is valid, returning their TeacherID if valid.
 	for i,teacher in ipairs(TeacherAccount) do
-		if EmailAddress == teacher.EmailAddress and Password == teacher.Password then
+		if string.lower(EmailAddress) == teacher.EmailAddress and Password == teacher.Password then
 			return teacher.TeacherID
 		end
 	end
@@ -294,7 +294,7 @@ function FetchTeacherInfo(TeacherID)				-- Returns serialized Class, StudentAcco
 	for i,student in ipairs(StudentAccount) do
 		local className = classIDs[student.ClassID]
 		if className then
-			table.insert(students, { StudentID = student.StudentID, Forename = student.Forename, Surname = student.Surname, Ratings = student.Ratings, Level = student.Level, ClassName = className })
+			table.insert(students, { StudentID = student.StudentID, Forename = student.Forename, Surname = student.Surname, Ratings = student.Ratings, Level = student.Level, ClassName = className, Statistics = student.Statistics })
 		end
 	end
 

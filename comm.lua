@@ -145,7 +145,7 @@ local function AddStudentToClass(peer, classJoinCode)     -- Respond to student 
     end
     local teacherID = class.teacherID
     local teacherPeer = findTeacherPeer(teacherID)
-    SendInfo(teacherPeer, "StudentJoinedClass" + studentID + student.Forename + student.Surname + class.className + student.Ratings, false, teacherID)
+    SendInfo(teacherPeer, "StudentJoinedClass" + studentID + student.Forename + student.Surname + student.Ratings + student.Level + class.className + student.Statistics, false, teacherID)
 end
 
 local function NotifyStudentsOfTournament(classID, roundTime, qsPerMatch)            -- Notifies all students in a class that a tournament has started. Called at very start of tournament.
@@ -393,8 +393,8 @@ function NotifyStudentsOfMatchResult(Scoreboard1, Scoreboard2, Score1, Score2)  
     if student1 and student2 then
         local studentPeer1 = findStudentPeer(student1.StudentID)
         local studentPeer2 = findStudentPeer(student2.StudentID)
-        SendInfo(studentPeer1, "MatchResults" + student2.Forename..student2.Surname + result, true, student1.StudentID)
-        SendInfo(studentPeer2, "MatchResults" + student1.Forename..student1.Surname + (3 - result), true, student2.StudentID)
+        SendInfo(studentPeer1, "MatchResults" + student2.Forename.." "..student2.Surname + result, true, student1.StudentID)
+        SendInfo(studentPeer2, "MatchResults" + student1.Forename.." "..student1.Surname + (3 - result), true, student2.StudentID)
     end
 end
 
